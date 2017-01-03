@@ -1,0 +1,66 @@
+B4 SCORING SYNTAX VERSION 1.0
+WRITTEN BY HT
+SYNTAX CREATED 22JAN2007
+DROPING TABLE tmpVendor
+Create tmpVendor
+
+(1487526 row(s) affected)
+
+Update Postcode Sector
+
+(1487526 row(s) affected)
+
+INDEX tmpVendor
+Update Package ID to Gospel ID
+
+(1398904 row(s) affected)
+
+Update Address Data
+
+(1487522 row(s) affected)
+
+DROPING TABLE tmpPackage
+CREAET tmpPackage
+
+(1487526 row(s) affected)
+
+INDEX tmpPackage
+DROPING TABLE BERT_FinalChar
+CREATE risk..BERT_FinalChar
+First fill
+
+(1191377 row(s) affected)
+
+2nd Fill
+
+(79278 row(s) affected)
+
+3rd and Final Fill
+
+(171695 row(s) affected)
+
+Update Phases
+
+(1442350 row(s) affected)
+
+Update Litigation Flag to Gospel
+First Update field values to skip_values table
+
+(1353686 row(s) affected)
+
+Updating Litigation Field from Gospel Table
+
+(635222 row(s) affected)
+
+DROPING TABLE BERT_ScoreChar
+CREATE AND POPULATE TABLE risk..BERT_ScoreChar
+
+(1442350 row(s) affected)
+
+INDEX BERT_FinalChar
+DROPING TABLE BERT_FinalScore
+Make Table risk..BERT_FinalScore
+
+(1442350 row(s) affected)
+
+INDEX risk..BERT_FinalScore

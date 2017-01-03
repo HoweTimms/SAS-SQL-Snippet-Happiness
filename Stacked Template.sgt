@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<template SPSS-Version="2.2" date="2006-12-13" description="Stacked Pop Stab Chart (Blue)" selectPath="2 3 30 97 98 10 90 92 12 13 17 20 29 33 47 62 63 66 94 70 36 37 38 40 41 43 68 69 45 46 " xmlns="http://xml.spss.com/spss/visualization" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://xml.spss.com/spss/visualization http://xml.spss.com/spss/visualization/vizml-template-3.0.xsd">
+	<setAxisStyle categorical="false" role="y">
+		<axisLabelStyle>
+			<style color="#000000" color2="transparent" font-size="8pt" font-weight="regular" text-fit="false" visible="true"/>
+		</axisLabelStyle>
+		<label>Percent</label>
+	</setAxisStyle>
+	<setAxisStyle categorical="false" role="x">
+		<axisLabelStyle>
+			<style color="#000000" color2="transparent" font-size="10pt" font-style="regular" font-weight="regular" text-fit="false" visible="true"/>
+		</axisLabelStyle>
+		<axisLabelStyle>
+			<style color="#000000" color2="transparent" font-size="10pt" font-style="regular" font-weight="regular" text-fit="false" visible="true"/>
+		</axisLabelStyle>
+		<label>Factor_Value</label>
+		<label>Maturity</label>
+	</setAxisStyle>
+	<setPanelOptions gap="20px" role="x"/>
+	<setWrapPanels wrap="false"/>
+	<addFrame count="1" type="visualization">
+		<location bottom="800px" left="0px" right="625px" top="0px"/>
+		<style color="#ffffff" color2="transparent" number="0" visible="true"/>
+		<style font-family="Arial" font-size="8pt" number="1" pattern="0" stroke-linecap="butt" text-fit="true" visible="true"/>
+	</addFrame>
+	<addFrame count="1" type="graph">
+		<location bottom="97.5%" left="2%" right="98%" top="2.5%"/>
+		<style color="transparent" color2="transparent" visible="true"/>
+		<style color="transparent" color2="transparent" number="1" visible="true"/>
+	</addFrame>
+	<setAxisOpposite categorical="false" opposite="false" role="y"/>
+	<setAxisOpposite categorical="false" opposite="true" role="x"/>
+	<setTranspose transpose="false"/>
+	<setAxisScale method="linear" role="y"/>
+	<setAxisMajorTicks>
+		<majorTicks categorical="false" delta="auto" derived="false" position="outside" role="y" styleOnly="false">
+			<gridLines>
+				<style visible="false"/>
+			</gridLines>
+			<markStyle>
+				<style color="#000000" stroke-width="1pt" visible="true"/>
+			</markStyle>
+			<tickLabelStyle>
+				<style color="#000000" font-size="8pt" visible="true"/>
+			</tickLabelStyle>
+		</majorTicks>
+	</setAxisMajorTicks>
+	<setAxisMinorTicks>
+		<minorTicks categorical="false" derived="false" number="2" position="outside" role="y" styleOnly="false">
+			<gridLines>
+				<style color="#ece9d8" stroke-dasharray="3px,2px" stroke-linecap="square" stroke-width="1pt" visible="true"/>
+			</gridLines>
+			<markStyle>
+				<style color="#000000" visible="false"/>
+			</markStyle>
+		</minorTicks>
+	</setAxisMinorTicks>
+	<setAxisMinorTicks>
+		<minorTicks categorical="true" derived="false" number="2" position="outside" role="x" styleOnly="false">
+			<gridLines>
+				<style visible="true"/>
+			</gridLines>
+			<markStyle>
+				<style color="#000000" visible="false"/>
+			</markStyle>
+		</minorTicks>
+	</setAxisMinorTicks>
+	<setAxisMajorTicks>
+		<majorTicks categorical="true" delta="auto" position="outside" role="x" styleOnly="false">
+			<gridLines>
+				<style visible="false"/>
+			</gridLines>
+			<markStyle>
+				<style color="#000000" stroke-width="1pt" visible="true"/>
+			</markStyle>
+			<tickLabelStyle>
+				<style color="#000000" font-size="8pt" visible="true"/>
+			</tickLabelStyle>
+		</majorTicks>
+	</setAxisMajorTicks>
+	<setTickLabelFormat categorical="false" derived="false" role="y">
+		<numberFormat minimumFractionDigits="1" suffix="%" useGrouping="true"/>
+	</setTickLabelFormat>
+	<setTickLabelAngle categorical="false" derived="false" role="y"/>
+	<setAxisMargin categorical="false" role="y" upperMargin="5%"/>
+	<setAxisOpposite categorical="true" opposite="false" role="x"/>
+	<setCategorySorting role="x" useGroupVar="false">
+		<sort>
+			<simpleSort method="natural"/>
+		</sort>
+	</setCategorySorting>
+	<setTickLabelAngle categorical="true" role="x"/>
+	<setTickLabelFrequency categorical="true" role="x"/>
+	<setAxisMargin categorical="true" lowerMargin="5%" role="x" upperMargin="5%"/>
+	<setStyle subtype="simple" type="bar">
+		<style color="#5d61ff" color2="transparent" depth="75%" pattern="0" size="75%" symbol="square" visible="true"/>
+	</setStyle>
+	<setStyle subtype="simple" type="bar">
+		<style color="#5d61ff" color2="transparent" depth="75%" pattern="0" size="75%" symbol="square" visible="true"/>
+	</setStyle>
+</template>
