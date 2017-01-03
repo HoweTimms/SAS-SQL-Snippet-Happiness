@@ -1,0 +1,1721 @@
+'      DISTRIBUTION.SBS
+'   Terry.Taerum@ualberta.ca
+
+Option Explicit
+
+Public strNotSelVar() As String
+Public strSelVar() As String
+Public strGroupVar() As String
+Public strShape() As String
+Public intSelection() As Integer
+Public intArrayIndex() As Integer
+Public intLenVariable() As Integer
+
+Public VarNames() As String
+Public DataFileName As String
+Public qRunJob As Integer
+Public iDist As Integer , iDistx As Integer
+Public iRandom As Integer
+Public intButton As Integer
+Public DistType() As String
+Public Param() As Double
+Public loParam() As Double
+Public hiParam() As Double
+
+Public iDistrx() As Integer
+Public iEqualx() As Integer
+Public iXDFx() As Integer
+
+Public strDist() As String
+Public nDist As Integer
+Public nVars As Long
+Public nCases As Long
+Public nGroups As Long
+
+Public Quanta As Double, Quantb As Double
+Public Shape1 As Double
+Public Shape2 As Double
+Public Shape3 As Double
+Public Shape4 As Double
+
+Public strGroup As String
+Public strFocus As String
+Public strVariable As String
+
+Public intNumSel As Integer
+Public intNumGrp As Integer
+Public intNumNotSel As Integer
+Public Instruction As Integer
+Public iXDF As Integer
+Public nXDF As Integer
+Public strXDF() As String
+Public iProgram As Integer
+
+Public loQuanta As Double, hiQuanta As Double
+Public loQuantb As Double, hiQuantb As Double
+Public loShape1 As Double, hiShape1 As Double
+Public loShape2 As Double, hiShape2 As Double
+Public loShape3 As Double, hiShape3 As Double
+Public qFileVisible As Integer, qEditMode As Integer
+Public qRelation As Integer
+
+Public nCase() As Long
+Public iRandomx() As Integer
+Public xShape1() As Single, xShape2() As Single
+Public strForm As String
+
+Public iDistAnalyze As Integer
+Public strDistUse() As String
+Public nDistList As Integer
+Public qModify As Integer
+
+Sub Main
+	Call LoadDist()
+	Dim objDataDoc As ISpssDataDoc
+	Dim objDocuments As ISpssDocuments
+	Dim iCount As Integer, iCountx As Integer
+	qRunJob=0
+	For iCount=0 To 1000
+		Call DialogGetProgram()
+		If (qRunJob=0) Then Exit For 
+		Select Case qRunJob
+			Case 1
+				For iCountx=0 To 1000
+					Call DialogGetRandomInfo()
+					If (qRunJob=0) Then Exit For
+					If (qRunJob=1) Then Call CreateDataFile()
+					Exit For
+				Next iCountx
+				If (qRunJob=0) Then Exit For
+			Case 2
+				For iCountx=0 To 1000
+					Call DialogGetFileInfo()
+					If (qRunJob=0) Then Exit For 
+					If (qRunJob=1) Then 
+						Call DialogGetDistInfo()
+						If (qRunJob=0) Then Exit For
+						If (qRunJob=1) Then 
+							Call CreateSyntaxFile()
+							Set objDocuments = objSpssApp.Documents
+							Set objDataDoc = objSpssApp.OpenDataDoc(DataFileName)
+						End If
+					End If
+					If (qRunJob=1 Or qRunJob=-1) Then Exit For
+				Next iCountx
+				If (qRunJob=0) Then Exit For
+			Case 3
+		End Select
+	Next iCount
+End Sub
+
+
+Sub AddToSelList()
+	Dim intSelIndex As Integer
+	Dim i As Integer
+	intSelIndex = DlgValue("lstVarInFile")
+	For i = 0 To UBound(intArrayIndex)
+		If (intArrayIndex(i) = intSelIndex) And (intSelection(i) = 0) Then
+			intSelection(i) = intButton
+			Exit For
+		End If
+	Next i
+	Call PopulateLists
+End Sub
+
+Sub RemoveFromSelList()
+	Dim intSelIndex As Integer
+	Dim i As Integer
+	If (intButton=1) Then intSelIndex = DlgValue("lstSelVar")
+	If (intButton=2) Then intSelIndex = DlgValue("lstGroupVar")
+	For i = 0 To UBound(intArrayIndex)
+		If (intArrayIndex(i) = intSelIndex) And (intSelection(i)=intButton) Then
+			intSelection(i) = 0
+			Exit For
+		End If
+	Next i
+	Call PopulateLists
+End Sub
+
+Sub PopulateLists()
+	Dim i As Integer
+	intNumSel = 0
+	intNumNotSel = 0
+	intNumGrp=0
+	ReDim strNotSelVar(intNumNotSel) As String
+	ReDim strSelVar(intNumSel) As String
+	ReDim strGroupVar(intNumGrp) As String
+	For i = 0 To UBound(intSelection)
+		If intSelection(i) = 0 Then
+			ReDim Preserve strNotSelVar(intNumNotSel) As String
+			strNotSelVar(intNumNotSel) = VarNames(i)
+			intArrayIndex(i) = intNumNotSel
+			intNumNotSel = intNumNotSel + 1
+		ElseIf intSelection(i) = 1 Then 	'Variable is selected for analysis
+			ReDim Preserve strSelVar(intNumSel) As String
+			strSelVar(intNumSel) = VarNames(i)
+			intArrayIndex(i) = intNumSel
+			intNumSel = intNumSel + 1
+		ElseIf intSelection(i) = 2 Then	'Variable is selected for grouping
+			ReDim Preserve strGroupVar(intNumGrp) As String
+			strGroupVar(intNumGrp) = VarNames(i)
+			intArrayIndex(i) = intNumGrp
+			intNumGrp = intNumGrp + 1
+		End If
+	Next i
+	DlgListBoxArray "lstVarInFile", strNotSelVar()
+	DlgListBoxArray "lstSelVar", strSelVar()
+	DlgListBoxArray "lstGroupVar",strGroupVar()
+End Sub
+
+
+Sub GetVarsFromFile()
+	If (qRunJob>=0) Then 
+		Dim objSPSSInfo As ISpssInfo
+		Dim i As Long
+		Set objSPSSInfo = objSpssApp.SpssInfo
+		Dim nVarsx As Long
+		nVarsx=0
+		For i = 0 To nVars-1
+			If (objSpssInfo.VarType(I)=0) Then nVarsx=nVarsx+1 
+		Next i
+		nVars=nVarsx
+		ReDim VarNames(nVars) As String
+		ReDim intSelection(nVars) As Integer
+		ReDim intArrayIndex(nVars) As Integer
+		For i = 0 To UBound(intSelection)-1
+			VarNames(i) = objSPSSInfo.VariableAt(i)	
+			intSelection(i) = 0	
+			intArrayIndex(i) = i		
+		Next i
+		DlgEnable "lstVarInFile", True
+		DlgEnable "lstSelVar", True
+		DlgEnable "lstGroupVar",True
+	End If
+	Call PopulateLists
+End Sub
+
+Sub SelectiDist()
+	Dim iValue As Integer
+	    			If (qRelation<>1) Then DlgText "txtShape1","b2: "+strShape(iDist,0)
+	    			If (qRelation=1) Then DlgText "txtShape1","b2: range"
+	    			If (qRelation=0 Or qRelation=1) Then DlgText "txtShape2","b3: "+strShape(iDist,1)
+	    			If (qRelation=2) Then DlgText "txtShape2","b3: b2"
+	    			If (qRelation=3) Then DlgText "txtShape2","b3: range"
+	    			Dim strPerform As String
+	    			DlgVisible "txtPerform",True
+	    			If (iXDF=1) Then strPerform="Convergence:  Excellent"
+	    			If (iXDF=2) Then
+	    				If (Mid(DistType(iDist),7,1)="1") Then 
+	    					strPerform="Convergence:  Good"
+	    				Else
+	    					strPerform="Convergence:  Poor"
+	    				End If
+	    			End If
+	    			If (iXDF=3) Then strPerform="Convergence:  Good"
+	    			DlgText "txtPerform",strPerform
+					loShape1=xShape1(iDist,0)
+					Shape1=xShape1(iDist,1)
+					hiShape1=xShape1(iDist,2)
+					loShape2=xShape2(iDist,0)
+					Shape2=xShape2(iDist,1)
+					hiShape2=xShape2(iDist,2)
+		    			iValue=0
+		    			Shape3=1.0
+	    				loShape3=0.25
+	    				hiShape3=200.0 
+					If (iXDF=3) Then iValue=1 
+					DlgVisible "Shape3",iValue
+					DlgVisible "loShape3",iValue
+					DlgVisible "hiShape3",iValue
+					DlgVisible "txtShape3",iValue
+					Dim strRelation As String
+					strRelation=""
+					If (Mid(DistType(iDist),4,1)<>"0") Then 
+						strRelation="Relation of "+strShape(iDist,0)+" and "+strShape(iDist,1)
+					Else
+						DlgVisible "grpboxRelation",False
+						DlgVisible "optFree",False
+					End If
+					DlgText "grpboxRelation",strRelation
+			    	Select Case iDist
+			    		Case 00 '<select>
+			    			iXDF=0
+						DlgEnable"cmdNext",False
+						DlgVisible "txtInitial",False
+						DlgVisible "txtLower",False
+						DlgVisible "txtUpper",False
+						DlgVisible "txtForm",False
+						DlgVisible "txtPerform",False
+						DlgVisible "grpboxDist",False
+						DlgVisible "grpboxRelation",False
+						DlgVisible "cmdAdd",False
+						DlgVisible "optFree",False
+						DlgText "txtForm",""
+						iValue=0
+						DlgVisible "Shape3",iValue
+						DlgVisible "loShape3",iValue
+						DlgVisible "hiShape3",iValue
+						DlgVisible "txtShape3",iValue
+						DlgVisible "lstDistAnalyze",False
+			    		Case 01 'Beta
+			    			DlgText "txtShape3","b5: ncBeta"
+			    		Case 03 'ChiSq
+			    			DlgText "txtShape3","b5: ncChiSq"
+			    		Case 05 'f
+			    			DlgText "txtShape3","b5: ncF"
+			    		Case 13 't
+			    			DlgText "txtShape3","b5: ncT"
+			    		Case 14 'uniform
+			    			qRelation=3
+			    			DlgValue "grpRelation",qRelation
+						DlgVisible "optFree",False
+						DlgVisible "optLT",False
+						DlgVisible "optEQ",False
+			    	End Select
+End Sub
+
+Sub RemoveOld()
+	Dim intSelIndex As Integer
+	Dim i As Integer
+	intSelIndex=0
+	For i = 0 To UBound(intArrayIndex)
+		If (intArrayIndex(i) = intSelIndex) And (intSelection(i)=intButton) Then
+			intSelection(i) = 0
+			Exit For
+		End If
+	Next i
+End Sub
+
+Sub TestIfFileVisible(qInitialize As Integer)
+	Dim objDataDoc As ISpssDataDoc
+	Dim objDocuments As ISpssDocuments
+	Set objDocuments = objSpssApp.Documents
+	If (qInitialize) Then 
+		Set objDataDoc = objSpssApp.OpenDataDoc(DataFileName)
+	Else
+		Set objDataDoc = objDocuments.GetDataDoc(0)
+		DataFileName=objDataDoc.GetDocumentPath
+		If (Right(DataFileName,8)="Untitled") Then DataFileName=""
+	End If
+	nVars=objDataDoc.GetNumberOfVariables
+	nCases=objDataDoc.GetNumberOfCases
+	If (nVars=0) Then DataFileName=""
+   	qFileVisible=0	
+   	If (nVars>0) Then qFileVisible=1 
+	DlgVisible "lstVarInFile",qFileVisible
+	DlgVisible "cmdGetVariable",qFileVisible
+	DlgVisible "lbl2",qFileVisible
+	DlgVisible "lbl1",qFileVisible
+	DlgVisible "cmdGetGroup",qFileVisible
+	DlgVisible "lstSelVar",qFileVisible
+	DlgVisible "lstGroupVar",qFileVisible
+	If (nVars>0) Then
+		DlgFocus "lstVarInFile"
+	    	Call GetVarsFromFile()
+	    	DlgEnable "cmdNext", True	
+	Else
+		DlgFocus "cmdBrowse"
+	    	DlgEnable "cmdNext", False	
+	End If
+End Sub
+
+Function DialogFileInfo(strDialogItem As String, intAction As Integer, intSuppValue As Integer) As Boolean
+    Select Case intAction
+	    Case 1 ' Dialog box initialization
+	    	DlgEnable "cmdCancel", True
+	    	DlgEnable "cmdNext", False
+	    	DlgEnable "DataFileName",False
+		Call TestIfFileVisible(0)
+	    	DlgText "DataFileName",DataFileName
+    		Call GetVarsFromFile()
+    		DlgEnable "cmdNext",False
+    		If (intNumSel>0) Then DlgEnable "cmdNext",True
+	    Case 2 ' Value changing or button pressed
+	        Select Case strDialogItem
+	        	Case "cmdBack"
+	        		DialogFileInfo=False
+	        		qRunJob=-1
+	        	Case "cmdNext"
+	    			DialogFileInfo = False
+        			qRunJob=1
+        			If (nVars=0) Then
+ 					MsgBox("You must identify the SPSS system file.",vbOK)
+ 					DialogFileInfo=True
+        			End If
+        			If (intNumSel>0) Then strVariable=strSelVar(0)
+        			If (intNumGrp>0) Then strGroup=strGroupVar(0)
+	        	Case "cmdCancel"
+	        		DialogFileInfo = False
+	        		qRunJob=0
+	        	Case "lstVarInFile"
+	        		DlgText "cmdGetVariable", ">Variable>"
+	        		DlgEnable "cmdGetVariable", True
+	        		DlgText "cmdGetGroup", ">Group>"
+	        		DlgEnable "cmdGetGroup", True
+	        		DialogFileInfo = True
+	        	Case "lstGroupVar"
+	        		DlgText "cmdGetGroup","<Group<"
+	        		DialogFileInfo=True
+	        	Case "lstSelVar"
+	        		DlgText "cmdGetVariable", "<Variable<"
+	        		DialogFileInfo = True
+	        	Case "cmdBrowse"
+	        		ReDim strNotSelVar(0) As String
+	        		ReDim strSelVar(0) As String
+	        		ReDim strGroupVar(0) As String
+				DlgListBoxArray "lstVarInFile", strNotSelVar()
+				DlgListBoxArray "lstSelVar", strSelVar()
+				DlgListBoxArray "lstGroupVar",strGroupVar()
+				Dim DataFileNameHold As String
+				DataFileNameHold=GetFilePath$(,"sav",,"SPSS system file:",0)
+				If (DataFileNameHold<>"") Then
+					DataFileName=DataFileNameHold
+				    	DlgText "DataFileName", DataFileName
+				End If
+				If (DataFileName<>"") Then Call TestIfFileVisible(1)
+	        		DialogFileInfo=True
+	        	Case "cmdGetVariable"
+	        		intButton=1 
+	        		If DlgText("cmdGetVariable") = ">Variable>" Then
+	        			If (intNumSel>0) Then Call RemoveOld()
+	        			Call AddToSelList()
+	        			DlgEnable "cmdNext",True
+	        		Else							
+	        			Call RemoveFromSelList
+	        			DlgEnable "cmdNext",False
+	        		End If
+	        		DialogFileInfo = True
+	        	Case "cmdGetGroup"
+	        		intButton=2
+	        		If DlgText("cmdGetGroup") = ">Group>" Then 	
+	        			If (intNumGrp>0) Then Call RemoveOld()
+	        			Call AddToSelList()
+	        		Else							
+	        			Call RemoveFromSelList()
+	        		End If
+	        		DialogFileInfo = True
+	        End Select
+	End Select
+End Function
+
+Sub DialogGetFileInfo
+	ReDim strNotSelVar(0) As String
+	ReDim strSelVar(0) As String
+	ReDim strGroupVar(0) As String
+	Begin Dialog UserDialog 530,182,"Select Variables for Distribution Analysis",.DialogFileInfo
+		PushButton 450,20,70,21,"Browse...",.cmdBrowse
+		PushButton 450,50,70,21,"Back...",.cmdBack	
+		PushButton 450,80,70,21,"Next...",.cmdNext
+		PushButton 450,110,70,21,"Cancel",.cmdCancel
+		TextBox 100,21,320,21,.DataFileName
+		ListBox 30,77,140,98,strNotSelVar(),.lstVarInFile
+		ListBox 290,77,150,35,strSelVar(),.lstSelVar
+		PushButton 180,77,100,21,">Variable>",.cmdGetVariable
+		Text 30,56,140,14,"Variables:",.lbl2
+		Text 290,56,140,14,"Selected Variable:",.lbl1
+		PushButton 180,126,100,21,">Group>",.cmdGetGroup
+		ListBox 290,126,150,28,strGroupVar(),.lstGroupVar
+		Text 30,21,70,14,"Data File",.Text1
+	End Dialog
+	Dim dlg As UserDialog
+	Dialog dlg
+End Sub
+
+
+Sub ResetEditMode(iReset As Integer)
+	If (iReset=0) Then 
+		DlgVisible "grpboxEdit",False
+		DlgEnable "cmdNext",True
+		DlgEnable "cmdCancel",True
+		qEditMode=0
+		DlgText "cmdBack","Back..."
+	ElseIf (iReset=1) Then
+		DlgVisible "grpboxEdit",True
+		DlgEnable "cmdNext",False
+		DlgEnable "cmdCancel",False
+		DlgText "cmdBack","Exit Editor"
+	End If
+End Sub
+
+Sub DialogGetRandomInfo
+	Begin Dialog UserDialog 540,250,"Test for fit to Distribution.",.DialogRandomInfo
+		PushButton 270,60,80,40,"Next",.cmdNext
+		Text 220,150,250,14,"",.txtForm
+		PushButton 455,07,80,21,"Finish",.cmdFinish
+		PushButton 455,35,80,21,"Back...",.cmdBack
+		PushButton 455,63,80,21,"Cancel",.cmdCancel
+		TextBox 20,02,100,21,.txtboxNGroups
+		Text      20,28,350,14,"1. Type in number of cases to be in Group and click 'Next'",.txt2
+		TextBox 20,42,335,2,.line2
+		TextBox 376,30,41,21,.txtboxNCases
+		Text      20,52,200,14,"2. Select distribution for Group: ",.txt3
+		TextBox 20,66,200,2,.line3
+		ListBox 45,70,150,98,strDist(),.lstRandom
+		Text      20,171,380,14,"3. Modify parameters and click on the 'Next' button when done.",.txt4
+		TextBox 20,185,380,2,.line4
+		GroupBox 006,160,395,070,"Edit Mode",.grpboxEdit
+		Text      045,187,65,14,"a",.txtQuanta
+		Text      115,187,65,14,"b",.txtQuantb
+		Text	 185,187,65,14,"Distribution",.lstRandomText
+		Text       255,187,65,14,"s1",.txtShape1
+		Text       325,187,65,14,"s2",.txtShape2
+		TextBox 045,202,60,21,.Quanta
+		TextBox 115,202,60,21,.Quantb
+		TextBox 185,202,60,21,.boxRandom
+		TextBox 255,202,60,21,.Shape1
+		TextBox 325,202,60,21,.Shape2
+		Text      20,232,350,14,"4. Click on 'Next' to add another group   or   Click on 'Finish':",.txt5
+		TextBox 20,246,350,2,.line5
+		GroupBox 370,14,72,45,"Edit Mode",.grpboxNCases
+	End Dialog
+	Dim dlg As UserDialog
+	Dialog dlg
+End Sub
+
+Sub SelectiRandom()
+	Dim iValue As Integer
+	    			DlgText "txtShape1",strShape(iRandom,0)
+	    			DlgText "txtShape2",strShape(iRandom,1)
+	    			DlgVisible "Quanta",True
+	    			DlgVisible "Quantb",True
+	    			DlgVisible "Shape1",False
+	    			DlgVisible "Shape2",False	
+				DlgVisible "txtQuanta",True
+				DlgVisible "txtQuantb",True
+				DlgVisible "lstRandomText",True
+				DlgVisible "txtShape1",False
+				DlgVisible "txtShape2",False
+				DlgVisible "boxRandom",True
+				DlgEnable "txt4",True
+				DlgVisible "line4",True
+				DlgEnable "cmdNext",True
+				Quanta=10
+				Quantb=50
+				strForm=""
+				If (Mid(DistType(iRandom),10,1)="0") Then
+					DlgVisible "Quanta",False
+					DlgVisible "Quantb",False
+					DlgVisible "txtQuanta",False
+					DlgVisible "txtQuantb",False
+				Else
+					strForm=strForm+"a+b*"
+				End If
+					strForm=strForm+"rv."+strDist(iRandom)+"("
+				If (Mid(DistType(iRandom),11,1)="1") Then 
+	      	  		strForm=strForm+strShape(iRandom,0)+")"
+					Call TurnOnFormula(1,1)
+				End If
+				If (Mid(DistType(iRandom),11,1)="2") Then
+					If (strDist(iRandom)="Uniform") Then
+	      	  			strForm=strForm+strShape(iRandom,0)+","+strShape(iRandom,0)+"+"+strShape(iRandom,1)+")"
+	      	  		Else
+	      	  			strForm=strForm+strShape(iRandom,0)+","+strShape(iRandom,1)+")"
+	      	  		End If
+					Call TurnOnFormula(2,1)
+				End If
+				If (Mid(DistType(iRandom),11,1)="0") Then
+					strForm=""
+					Call TurnOnFormula(2,0)
+				End If
+				Shape1=xShape1(iRandom,1)
+				Shape2=xShape2(iRandom,1)
+			    	Select Case iRandom
+			    		Case 00 '<select>
+						DlgEnable"cmdFinish",False
+						DlgEnable "txt4",False
+			    	End Select
+End Sub
+
+Function DialogRandomInfo(strDialogItem As String, intAction As Integer, intSuppValue As Integer) As Boolean
+    Select Case intAction
+	    Case 1 ' Dialog box initialization
+				DlgEnable "txtboxNGroups",False
+			    	DlgVisible "grpboxEdit", False
+	    			DlgVisible "Quanta",False
+	    			DlgVisible "Quantb",False
+	    			DlgVisible "Shape1",False
+	    			DlgVisible "Shape2",False	
+				DlgVisible "txtQuanta",False
+				DlgVisible "txtQuantb",False
+				DlgVisible "txtShape1",False
+				DlgVisible "txtShape2",False
+				DlgVisible "lstRandomText",False
+				DlgVisible "boxRandom",False
+				DlgEnable "boxRandom",False
+				DlgVisible "txtForm",False
+				nGroups=0 
+				DlgEnable "lstRandom",False
+				DlgEnable "cmdFinish",False
+				DlgEnable "txt2",True
+				DlgEnable "txt3",False
+				DlgEnable "txt4",False
+				DlgEnable "txt5",False
+				DlgVisible "line2",False
+				DlgVisible "line3",False
+				DlgVisible "line4",False
+				DlgVisible "line5",False
+				DlgEnable "txtboxNCases",False
+				Call exInstruction1()
+				nCases=0
+				DlgEnable "grpboxNCases",True
+				DlgVisible "grpboxNCases",True
+				Wait .001  ' required for dialog to sync
+		Case 2 ' Commands
+	If (qEditMode>0) Then Call DialogEditRandom(strDialogItem,intAction,intSuppValue)
+	        Select Case strDialogItem
+	        	Case "cmdFinish"
+	        		dialogRandomInfo=False
+	        		qRunJob=1
+	        	Case "cmdCancel"
+	        		dialogRandomInfo=False
+	        		qRunJob=0
+	        	Case "cmdBack"
+	        		dialogRandomInfo=False
+	        		qRunJob=-1
+	        	Case "cmdNext"
+	        		dialogRandomInfo=True
+				If (Instruction=1) Then 
+					Call exInstruction1()
+	      	  	ElseIf (Instruction=2) Then
+	      	  		nCases=Val(DlgText("txtboxNCases"))
+	      	  		If (nCases>=10 And nCases<=10000) Then 
+	      	  			DlgEnable "txt2",False
+	      	  			DlgEnable "txt3",True
+	      	  			DlgVisible "line2",False
+	      	  			DlgVisible "line3",True
+	      	  			instruction=3
+						DlgEnable "txtboxNCases",False
+						DlgEnable "lstRandom",True
+						DlgEnable "txtForm",True
+						DlgVisible "txtForm",True
+						DlgEnable "lstRandomText",True
+	      	  		Else
+ 						MsgBox("Number of cases must be between 10 and 10000.",vbOK)
+						DlgFocus "txtboxNCases"
+	      	  		End If
+	      	  	ElseIf (Instruction=3) Then
+	      	  		If (iRandom>0 And (Mid(DistType(iRandom),10,1)<>"0" Or Mid(DistType(iRandom),11,1)<>"0")) Then 
+		      	  		DlgEnable "txt3",False
+		      	  		DlgEnable "txt4",False
+	      		  		DlgEnable "txt5",True
+	      		  		DlgVisible "line3",False
+	      		  		DlgVisible "line4",False
+	      		  		DlgVisible "line5",True
+	      		  		DlgEnable "cmdFinish",True
+	      	  			Instruction=5
+						DlgEnable "lstRandom",False
+						DlgEnable "txtForm",False
+		      	  		DlgEnable "Quanta",False
+		      	  		DlgEnable "Quantb",False
+	      		  		DlgEnable "shape1",False
+	      		  		DlgEnable "shape2",False
+						DlgEnable "lstRandomText",False
+		      	  		DlgEnable "txtQuanta",False
+		      	  		DlgEnable "txtQuantb",False
+	      		  		DlgEnable "txtshape1",False
+	      		  		DlgEnable "txtshape2",False
+	      		  		Dim iGroup As Integer
+	      		  		iGroup=nGroups-1
+	      		  		ReDim Preserve nCase(nGroups)
+						nCase(iGroup)=nCases
+						ReDim Preserve iRandomx(nGroups)
+						iRandomx(iGroup)=iRandom
+						ReDim Preserve Param(4,nGroups)
+						Param(0,iGroup)=Quanta
+						Param(1,iGroup)=Quantb
+						Param(2,iGroup)=Shape1
+						Param(3,iGroup)=Shape2
+	      	  		Else
+ 						MsgBox("You must select an existing distribution.",vbOK)
+						DlgFocus "lstRandom"
+	      	  		End If
+	      	  	ElseIf (Instruction=5) Then 
+	      	  		Call exInstruction1()
+	      	  	End If
+	        	Case "lstRandom"
+	        		DlgEnable "txt4",True
+	        		DlgVisible "line4",True
+	        		iRandom=DlgValue("lstRandom")
+				Call SelectiRandom()
+				DlgText "txtForm","Form: "+strForm
+				DlgText	"Quanta",Format(Quanta,"####0.######")
+				DlgText "Quantb",Format(Quantb,"####0.######")
+				DlgText "boxRandom",strDist(iRandom)
+				DlgText "Shape1",Format(Shape1,"####0.######")
+				DlgText "Shape2",Format(Shape2,"####0.######")
+		End Select							
+	    Case 4 ' gaining focus
+	If (qEditMode>0) Then Call DialogEditRandom(strDialogItem,intAction,intSuppValue)
+	    	Select Case strDialogItem
+	    		Case "txtboxNCases"
+	    			qEditMode=1
+	    		Case "Quanta","Quantb","Shape1","Shape2"
+	    			qEditMode=2
+			End Select
+			If (qEditMode>0) Then 
+	    			strFocus=strDialogItem
+	    			Call ResetEditMode1(1)
+			End If
+	End Select
+End Function
+
+Sub exInstruction1()
+	strForm=""
+	DlgVisible "txtForm",False
+	DlgText "txtForm",strForm
+	iRandom=0
+	Instruction=2
+	DlgValue "lstRandom",iRandom
+	DlgEnable "cmdFinish",False
+	nGroups=nGroups+1
+	If (nGroups>=5) Then 
+		nGroups=5
+		DlgEnable "cmdNext",False
+		DlgEnable "cmdFinish",True
+		MsgBox("You can have a maximum of 20 groups.",vbOK)
+		Instruction=1
+	End If
+	DlgText "txtboxNGroups","Group: "+Format(nGroups)
+	DlgEnable "txt2",True
+	DlgVisible "line2",True
+	qEditMode=1
+	DlgEnable "txtboxNCases",True
+	DlgFocus "txtboxNCases"
+	DlgEnable "lstRandom",False
+	DlgVisible "Quanta",False
+	DlgVisible "Quantb",False
+	DlgVisible "Shape1",False
+	DlgVisible "shape2",False
+	DlgVisible "txtQuanta",False
+	DlgVisible "txtQuantb",False
+	DlgVisible "txtShape1",False
+	DlgVisible "txtshape2",False
+	DlgVisible "lstRandomText",False
+	DlgVisible "boxRandom",False
+	DlgEnable "txt5",False
+	DlgVisible "line5",False
+	ResetEditMode1(1)
+End Sub
+
+Sub ResetEditMode1(iReset As Integer)
+	If (iReset=0) Then 
+		qEditMode=0
+		If (Instruction=2) Then 
+			DlgVisible "grpboxNCases",False
+		ElseIf (instruction=3) Then
+			DlgVisible "grpboxEdit",False
+			DlgEnable "cmdFinish",True
+		End If
+	ElseIf (iReset=1) Then
+		If (Instruction=2) Then
+			DlgVisible "grpboxNCases",True
+		ElseIf (Instruction=3) Then 
+			DlgVisible "grpboxEdit",True
+		End If
+	End If
+End Sub
+
+Sub DialogEditRandom(strDialogItem As String, intAction As Integer, intSuppValue As Integer)
+    Select Case intAction
+	    Case 4    ' gaining focus
+	    	Select Case strFocus
+	    		Case "txtboxNCases"
+	    			nCases=Val(DlgText("txtboxNCases"))
+	    		Case "Quanta" 
+			    			Quanta=Val(DlgText("Quanta"))
+	    		Case "Quantb"
+			    			Quantb=Val(DlgText("Quantb"))
+	    		Case "Shape1"
+			    			Shape1=Val(DlgText("Shape1"))
+			    			xShape1(iRandom,1)=Shape1
+	    		Case "Shape2"
+			    			Shape2=Val(DlgText("Shape2"))
+			    			xShape2(iRandom,2)=Shape2
+	    	End Select
+		If (strDialogItem="cmdNext") Then Call ResetEditMode1(0)
+	End Select
+End Sub
+
+Sub CreateDataFile()
+	Dim strCommand As String
+	Dim iGroup As Integer
+	strCommand="new file."+vbCrLf
+	strCommand=strCommand+"input program."+vbCrLf
+	For iGroup=1 To nGroups
+		iRandom=iRandomx(iGroup-1)
+		strCommand=strCommand+"loop #i=1 to "+Format(nCase(iGroup-1))+"."+vbCrLf
+		strCommand=strCommand+"compute group="+Format(iGroup)+"."+vbCrLf
+		strCommand=strCommand+"compute value="
+		If (Mid(DistType(iRandom),10,1)="1") Then 
+			strCommand=strCommand+Format(Param(0,iGroup-1))
+			strCommand=strCommand+"+"+Format(Param(1,iGroup-1))+"*"
+		End If
+		strCommand=strCommand+"rv."+strDist(iRandom)+"("+Format(param(2,iGroup-1))
+		If (Mid(DistType(iRandom),11,1)="2") Then 
+			If (strDist(iRandom)="Uniform") Then
+				strCommand=strCommand+","+Format(Param(2,iGroup-1))+"+"+Format(Param(3,iGroup-1))
+			Else
+				strCommand=strCommand+","+Format(Param(3,iGroup-1))
+			End If
+		End If
+		strCommand=strCommand+")."+vbCrLf
+		strCommand=strCommand+"compute value=trunc(100*value)/100 ."+vbCrLf 
+		strCommand=strCommand+"end case."+vbCrLf
+		strCommand=strCommand+"end loop."+vbCrLf
+	Next iGroup
+	strCommand=strCommand+"end file."+vbCrLf
+	strCommand=strCommand+"end input program."+vbCrLf
+	strCommand=strCommand+"execute ."+vbCrLf
+	strCommand=strCommand+"save outfile='random.sav'."+vbCrLf
+	objSpssApp.ExecuteCommands strCommand, False
+End Sub
+
+Sub DialogGetProgram
+	Begin Dialog UserDialog 420,140,"Select Procedure",.DialogProgInfo
+		PushButton  10,110,400,21,"Quit.",.cmdCancel
+		PushButton 10,10,400,21,"Estimate Distribution of a variable in an existing Data File...",.cmdData
+		PushButton 10,35,400,21,"Create a variable using a Random Generator...",.cmdRandom
+		PushButton 10,60,400,21,"Estimate Distribution of Parameters...",.cmdParam
+		PushButton 10,85,400,21,"Test Parameters...",.cmdTest
+	End Dialog
+	Dim dlg As UserDialog
+	Dialog dlg
+End Sub
+
+Function DialogProgInfo(strDialogItem As String, intAction As Integer, intSuppValue As Integer) As Boolean
+    Select Case intAction
+	    Case 1 ' Dialog box initialization
+			While objSpssApp.IsBusy
+				Wait 1
+		 	Wend
+		    	DlgVisible "cmdTest", False
+		    	DlgVisible "cmdParam", False
+		    	
+		Case 2 ' Commands
+	        Select Case strDialogItem
+	        	Case "cmdCancel"
+	        		dialogProgInfo=False
+	        		qRunJob=0
+	        	Case "cmdRandom"
+	        		dialogProgInfo=False
+	        		qRunJob=1
+	        	Case "cmdData"
+	        		dialogProgInfo=False
+	        		qRunJob=2
+	        	Case "cmdParam"
+	        		dialogProgInfo=False
+	        		qRunJob=3
+	        	Case "cmdTest"
+	        		dialogProgInfo=False
+	        		qRunJob=4
+		End Select							
+	End Select
+End Function
+Sub TurnOnFormula(qLevel As Integer,qValue As Integer)
+	If (qValue=0) Then DlgText "lstRandomText","Not Found"
+	If (qValue=1) Then DlgText "lstRandomText","Distribution"
+	DlgEnable "txtQuanta",qValue
+	DlgEnable "Quanta",qValue
+	DlgEnable "txtQuantb",qValue
+	DlgEnable "Quantb",qValue
+	DlgVisible "txtShape1",qValue
+	DlgVisible "Shape1",qValue
+	DlgEnable "txtShape1",qValue
+	DlgEnable "Shape1",qValue
+	If (qLevel=2) Then
+		DlgVisible "txtShape2",qValue
+		DlgVisible "Shape2",qValue
+		DlgEnable "txtShape2",qValue
+		DlgEnable "Shape2",qValue
+	End If
+End Sub
+
+Sub MakeForm()
+	strForm=""
+	If (iXDF=1) Then
+		strForm=strForm+"quant="
+		If (Mid(DistType(iDist),1,1)="1") Then strForm=strForm+"a+"
+		If (Mid(DistType(iDist),2,1)="1") Then strForm=strForm+"b*"
+		strForm=strForm+"idf."+strDist(iDist)+"(prob,"
+	End If
+	If (iXDF=2 Or iXDF=3) Then
+		strForm=strForm+"prob="
+		If (iXDF=2) Then strForm=strForm+"cdf."
+		If (ixDF=3) Then strForm=strForm+"ncdf."
+		strForm=strForm+strDist(iDist)+"((quant"
+		If (Mid(DistType(iDist),1,1)="1") Then strForm=strForm+"-a)"
+		If (Mid(DistType(iDist),2,1)="1") Then strForm=strForm+"/b"
+		strForm=strForm+","
+	End If
+	If (Mid(DistType(iDist),3,1)="1" And qRelation<>1) Then strForm=strForm+strShape(iDist,0)
+	If (qRelation=1) Then strForm=strForm+strShape(iDist,1)+"+range"
+	If (Mid(DistType(iDist),3,1)="1" And Mid(DistType(iDist),4,1)="1") Then strForm=strForm+","
+	If (Mid(DistType(iDist),4,1)<>"0" And qRelation=0) Then strForm=strForm+strShape(iDist,1)
+	If (qRelation=1) Then strForm=strForm+strShape(iDist,1)
+	If (qRelation=2) Then strForm=strForm+strShape(iDist,0)
+	If (qRelation=3) Then strForm=strForm+strShape(iDist,0)+"+range"
+	If (Mid(DistType(iDist),4,1)<>"0" And Mid(DistType(iDist),5,1)="1") Then strForm=strForm+","
+	If (Mid(DistType(iDist),5,1)="1") Then strForm=strForm+"c"
+	If (iXDF=3) Then strForm=strForm+",ncdf"
+	strForm=strForm+")"
+		DlgText "txtForm",strForm
+End Sub
+
+Sub CreateSyntaxInit(strCommand As String)
+	If (DataFileName<>"") Then 
+		If (intNumGrp>0) Then 
+			strCommand="get file='"+DataFileName+"'/keep "+strGroup+" "&strVariable+"."&vbCrLf
+		Else 
+			strCommand="get file='"+DataFileName+"'/keep "+strVariable+"."&vbCrLf
+		End If 
+	End If
+	If (intNumGrp=0) Then
+		strGroup="curve$"
+		strCommand=strCommand+"compute "+strGroup+"=1."&vbCrLf
+	End If
+	strCommand=strCommand+"sort cases by "+strGroup+" "+strVariable+" ."&vbCrLf 
+	strCommand=strCommand+"split file by "+strGroup+" ."&vbCrLf 
+	strCommand=strCommand+"rank vars="+strVariable+" /ties=mean/fraction=blom /Print=no /proportion   into prob ."&vbCrLf 
+	strCommand=strCommand+"save outfile='curve1.sav' /keep prob "+strGroup+" "+strVariable+" ."&vbCrLf 
+	strCommand=strCommand+"execute."&vbCrLf 
+	strCommand=strCommand+"get file='curve1.sav'."&vbCrLf 
+	strCommand=strCommand+"aggregate outfile='curve2.sav'"&vbCrLf
+	strCommand=strCommand+" /break="+strGroup+" "+strVariable+"/nx=n("+strVariable+")/prob=mean(prob) ."&vbCrLf
+	strCommand=strCommand+"execute."&vbCrLf 
+End Sub
+
+Sub CreateSyntaxDist(iCount As Integer, strCommand As String)
+	strCommand=strCommand+"get file='curve2.sav'."&vbCrLf 
+	strCommand=strCommand+"weight by nx."&vbCrLf
+	strCommand=strCommand+"split file by "+strGroup+" ."&vbCrLf 
+	strCommand=strCommand+"select If Not missing(prob) ."&vbCrLf
+	If (iCount=0) Then 
+		strCommand=strCommand+"frequencies vars="+strVariable+"/format=notable"&vbCrLf
+		strCommand=strCommand+"  /statistics=mean stddev skewness seskw kurtosis sekurt ."&vbCrLf
+	End If
+	strCommand=strCommand+"model program "
+	If (Mid(DistType(iDist),1,1)="1") Then strCommand=strCommand+"b0="+Format(Quanta)+" "
+	If (Mid(DistType(iDist),2,1)="1") Then strCommand=strCommand+"b1="+Format(Quantb)+" "
+	If (Mid(DistType(iDist),3,1)="1") Then strCommand=strCommand+"b2="+Format(Shape1)+" "
+	If (qRelation=0 And Mid(DistType(iDist),4,1)="1") Then strCommand=strCommand+"b3="+Format(Shape2)+" "
+	If (qRelation=1 Or qRelation=3) Then strCommand=strCommand+"b3="+Format(Shape2)+" "
+	If (Mid(DistType(iDist),5,1)="1") Then strCommand=strCommand+"b4="+Format(Shape3)+" "
+	If (iXDF=3) Then  strCommand=strCommand+"b4="+Format(Shape3)+" "
+	strCommand=strCommand+"."+vbCrLf
+	strCommand=strCommand+"compute pred="
+	If (iXDF=1) Then 
+		If (Mid(DistType(iDist),1,1)="1") Then strCommand=strCommand+"b0 +"
+		If (Mid(DistType(iDist),2,1)="1") Then strCommand=strCommand+"b1*"
+	End If
+	strCommand=strCommand+strXDF(iXDF)+"."+strDist(iDist)
+	If (iXDF=1) Then strCommand=strCommand+"(prob"
+	If (iXDF<>1) Then
+		strCommand=strCommand+"(("+strVariable
+		If (Mid(DistType(iDist),1,1)="1") Then strCommand=strCommand+"-b0"
+		strCommand=strCommand+")"
+		If (Mid(DistType(iDist),2,1)="1") Then strCommand=strCommand+"/b1"
+	End If
+	If (Mid(DistType(iDist),3,1)="1" And qRelation<>1) Then strCommand=strCommand+",b2"
+	If (qRelation=1) Then strCommand=strCommand+",b3+b2"
+	If (qRelation=0 And Mid(DistType(iDist),4,1)<>"0") Then strCommand=strCommand+",b3"
+	If (qRelation=1) Then strCommand=strCommand+",b3"
+	If (qRelation=2) Then strCommand=strCommand+",b2"
+	If (qRelation=3) Then strCommand=strCommand+",b2+b3"
+	If (Mid(DistType(iDist),5,1)="1") Then strCommand=strCommand+",b4"
+	If (iXDF=3) Then  strCommand=strCommand+",b4"
+	strCommand=strCommand+")."+vbCrLf
+	If (iXDF=1) Then strCommand=strCommand+"cnlr "+strVariable+vbCrLf 
+	If (iXDF<>1) Then strCommand=strCommand+"cnlr "+"prob"+vbCrLf 
+	strCommand=strCommand+"    /criteria iter 200 /save pred"&vbCrLf 
+	strCommand=strCommand+"    /bounds"&vbCrLf 
+	If (Mid(DistType(iDist),1,1)="1") Then strCommand=strCommand+"   "&Format(loQuanta)&" < b0 < "&Format(hiQuanta)&";"&vbCrLf
+	If (Mid(DistType(iDist),2,1)="1") Then strCommand=strCommand+"   "&Format(loQuantb)&" < b1 < "&Format(hiQuantb)&";"&vbCrLf
+	If (Mid(DistType(iDist),3,1)="1") Then strCommand=strCommand+"   "&Format(loShape1)&" < b2 < "&Format(hiShape1)&";"&vbCrLf
+	If (qRelation=0 And Mid(DistType(iDist),4,1)<>"0") Then strCommand=strCommand+"   "&Format(loShape2)&" < b3 < "&Format(hiShape2)&" ;"&vbCrLf
+	If (qRelation=1 Or qRelation=3) Then strCommand=strCommand+"   "&Format(loShape2)&" < b3 < "&Format(hiShape2)&" ;"&vbCrLf
+	If (Mid(DistType(iDist),5,1)="1") Then strCommand=strCommand+"   "&Format(loShape3)&" < b4 < "&Format(hiShape3)&" ;"&vbCrLf
+	If (iXDF=3) Then strCommand=strCommand+"   "&Format(loShape3)&" < b4 < "&Format(hiShape3)&" ;"&vbCrLf
+	strCommand=strCommand+"."+vbCrLf
+End Sub
+
+Sub CreateSyntaxMatch(iCount As Integer, strCommand As String, strProbName As String)
+		strProbName=Mid(strDist(iDist),1,5)+Format(iCount,"00")+"$"
+		strCommand=strCommand+"compute "&strProbName+"=pred ."&vbCrLf 	
+	If (iCount>0) Then 
+		strCommand=strCommand+"match files file=*/ file='curve2.sav' ."&vbCrLf 
+		strCommand=strCommand+"execute."&vbCrLf
+	End If 
+		strCommand=strCommand+"save outfile='curve2.sav' /drop pred ."&vbCrLf 
+		strCommand=strCommand+"execute."&vbCrLf
+End Sub
+
+Sub CreateSyntaxPlot(strCommand As String, strProbName As String)
+	strCommand=strCommand+"Get file='curve2.sav'."&vbCrLf 
+	Dim strVar4 As String, strGrp4 As String, strPrb4 As String
+	strVar4=StrConv(Mid(strVariable,1,4),vbUpperCase)
+	strGrp4=StrConv(Mid(strGroup,1,4),vbUpperCase)
+	strPrb4=StrConv(Mid(strProbName,1,4),vbUpperCase)
+	If (strPrb4=strVar4) Then strPrb4=Mid(strPrb4,1,3)+"$" 
+	strCommand=strCommand+"compute Case$$=$casenum ."&vbCrLf 
+	strCommand=strCommand+"compute one$$=1 ."&vbCrLf 
+	strCommand=strCommand+"aggregate outfile='agg.sav'/break=one$$/ncases$$=max(case$$) ."&vbCrLf 
+	strCommand=strCommand+"execute ."&vbCrLf 
+	strCommand=strCommand+"match files file=*/table='agg.sav'/by one$$ ."&vbCrLf 
+	strCommand=strCommand+"numeric prob$$m1 prob$$ prob$$p1 ."&vbCrLf 
+	strCommand=strCommand+"numeric "+strPrb4+"$$m1 "+strPrb4+"$$ "+strPrb4+"$$p1 ."&vbCrLf 
+	strCommand=strCommand+"numeric "+strVar4+"$$m1 "+strVar4+"$$ "+strVar4+"$$p1 ."&vbCrLf 
+	strCommand=strCommand+"numeric "+strGrp4+"$$m1 "+strGrp4+"$$ "+strGrp4+"$$p1 ."&vbCrLf 
+	strCommand=strCommand+"compute Case$$=$casenum ."&vbCrLf 
+	strCommand=strCommand+"compute "+strGrp4+"$$m1=lag("+strGrp4+"$$) ."&vbCrLf 
+	strCommand=strCommand+"compute "+strGrp4+"$$=lag("+strGroup+") ."&vbCrLf 
+	strCommand=strCommand+"compute "+strGrp4+"$$p1="+strGroup+" ."&vbCrLf 
+	strCommand=strCommand+"compute prob$$m1=lag(prob$$) ."&vbCrLf 
+	strCommand=strCommand+"compute prob$$=lag(prob) ."&vbCrLf 
+	strCommand=strCommand+"compute prob$$p1=prob ."&vbCrLf 
+	strCommand=strCommand+"compute "+strPrb4+"$$m1=lag("+strPrb4+"$$) ."&vbCrLf 
+	strCommand=strCommand+"compute "+strPrb4+"$$=lag("+strProbName+") ."&vbCrLf 
+	strCommand=strCommand+"compute "+strPrb4+"$$p1="+strProbName+" ."&vbCrLf 
+	strCommand=strCommand+"compute "+strVar4+"$$m1=lag("+strVar4+"$$) ."&vbCrLf 
+	strCommand=strCommand+"compute "+strVar4+"$$=lag("+strVariable+") ."&vbCrLf 
+	strCommand=strCommand+"compute "+strVar4+"$$p1="+strVariable+" ."&vbCrLf 
+	strCommand=strCommand+"compute #nx=1 ."&vbCrLf 
+	strCommand=strCommand+"If (Case$$ eq ncases$$) #nx=2 ."&vbCrLf 
+	strCommand=strCommand+"Loop #i=1 To #nx ."&vbCrLf 
+	strCommand=strCommand+"Do If (#i eq 2) ."&vbCrLf 
+	strCommand=strCommand+"numeric missx ."&vbCrLf 
+	strCommand=strCommand+"compute "+strGrp4+"$$m1="+strGrp4+"$$ ."&vbCrLf 
+	strCommand=strCommand+"compute "+strGrp4+"$$="+strGrp4+"$$p1 ."&vbCrLf 
+	strCommand=strCommand+"compute "+strGrp4+"$$p1=missx ."&vbCrLf 
+	strCommand=strCommand+"compute prob$$m1=prob$$ ."&vbCrLf 
+	strCommand=strCommand+"compute prob$$=prob$$p1 ."&vbCrLf 
+	strCommand=strCommand+"compute prob$$p1=missx ."&vbCrLf 
+	strCommand=strCommand+"compute "+strPrb4+"$$m1="+strPrb4+"$$ ."&vbCrLf 
+	strCommand=strCommand+"compute "+strPrb4+"$$="+strPrb4+"$$p1 ."&vbCrLf 
+	strCommand=strCommand+"compute "+strPrb4+"$$p1=missx ."&vbCrLf 
+	strCommand=strCommand+"End If ."&vbCrLf 
+	strCommand=strCommand+"xsave outfile='curve3.sav'"&vbCrLf 
+	strCommand=strCommand+"  /keep "&vbCrLf 
+	strCommand=strCommand+"        prob$$m1 prob$$ prob$$p1 "&vbCrLf 
+	strCommand=strCommand+"        "+strPrb4+"$$m1 "+strPrb4+"$$ "+strPrb4+"$$p1"&vbCrLf 
+	strCommand=strCommand+"        "+strVar4+"$$m1 "+strVar4+"$$ "+strVar4+"$$p1 "&vbCrLf 
+	strCommand=strCommand+"        "+strGrp4+"$$m1 "+strGrp4+"$$ "+strGrp4+"$$p1 ."&vbCrLf 
+	strCommand=strCommand+"End Loop ."&vbCrLf 
+	strCommand=strCommand+"execute ."&vbCrLf 
+	strCommand=strCommand+"Get file='curve3.sav'."&vbCrLf 
+	strCommand=strCommand+"Do If ("+strGrp4+"$$ ne "+strGrp4+"$$m1) ."&vbCrLf 
+	strCommand=strCommand+"compute slope1=(prob$$p1-prob$$)/("+strVar4+"$$p1-"+strVar4+"$$) ."&vbCrLf 
+	If (iXDF=1) Then strCommand=strCommand+"compute slope2=(prob$$p1-prob$$)/("+strPrb4+"$$p1-"+strPrb4+"$$) ."&vbCrLf 
+	If (iXDF<>1) Then strCommand=strCommand+"compute slope2=("+strPrb4+"$$p1-"+strPrb4+"$$)/("+strVar4+"$$p1-"+strVar4+"$$) ."&vbCrLf 
+	strCommand=strCommand+"Else If ("+strGrp4+"$$ ne "+strGrp4+"$$p1)."&vbCrLf 
+	strCommand=strCommand+"compute slope1=(prob$$-prob$$m1)/("+strVar4+"$$-"+strVar4+"$$m1) ."&vbCrLf 
+	If (iXDF=1) Then strCommand=strCommand+"compute slope2=(prob$$-prob$$m1)/("+strPrb4+"$$-"+strPrb4+"$$m1) ."&vbCrLf 
+	If (iXDF<>1) Then strCommand=strCommand+"compute slope2=("+strPrb4+"$$-"+strPrb4+"$$m1)/("+strVar4+"$$-"+strVar4+"$$m1) ."&vbCrLf 
+	strCommand=strCommand+"Else If (prob$$ gt prob$$m1) ."&vbCrLf 
+	strCommand=strCommand+"compute slope1=((prob$$-prob$$m1)/("+strVar4+"$$-"+vbCrLf
+	strCommand=strCommand+strVar4+"$$m1)  +(prob$$p1-prob$$)/("+strVar4+"$$p1-"+strVar4+"$$))/2."&vbCrLf 
+	If (iXDF=1) Then 
+		strCommand=strCommand+"compute slope2=((prob$$-prob$$m1)/("+strPrb4+"$$-"+strPrb4+"$$m1)+(prob$$p1-prob$$)/("+vbCrLf
+		strCommand=strCommand+strPrb4+"$$p1-"+strPrb4+"$$))/2 ."&vbCrLf 
+	End If
+	If (iXDF<>1) Then 
+		strCommand=strCommand+"compute slope2=(("+strPrb4+"$$-"+strPrb4+"$$m1)/("+strVar4+"$$-"+strVar4+"$$m1)+("+vbCrLf
+		strCommand=strCommand+strPrb4+"$$p1-"+strPrb4+"$$)/("+strVar4+"$$p1-"+strVar4+"$$))/2 ."&vbCrLf 
+	End If
+	strCommand=strCommand+"End If ."&vbCrLf 
+	strCommand=strCommand+"execute ."&vbCrLf 
+	
+	strCommand=strCommand+"aggregate outfile='agg.sav'"+vbCrLf
+	strCommand=strCommand+"  /break="+strGrp4+"$$"+vbCrLf
+	strCommand=strCommand+"  /max$$=max(slope2) ."+vbCrLf
+	strCommand=strCommand+"match files file=*/table='agg.sav'/by "+strGrp4+"$$ ."+vbCrLf
+	
+	strCommand=strCommand+"Select If Not missing(slope2) And slope2 lt 1.00 ."&vbCrLf 
+	strCommand=strCommand+"split file off ."&vbCrLf 
+	strCommand=strCommand+"weight off ."&vbCrLf 
+	strCommand=strCommand+"GRAPH"&vbCrLf 
+	If (iXDF=1) Then strCommand=strCommand+"   /SCATTERPLOT(BIVAR)="+strPrb4+"$$ With slope2 BY "+strGrp4+"$$"+vbCrLf 
+	If (iXDF<>1) Then strCommand=strCommand+"  /SCATTERPLOT(BIVAR)="+strVar4+"$$ With slope2 BY "+strGrp4+"$$"+vbCrLf 
+	strCommand=strCommand+"  /MISSING=LISTWISE ."&vbCrLf 
+	strCommand=strCommand+"split file by "+strGrp4+"$$ ."&vbCrLf 
+	strCommand=strCommand+"if (slope1>2*max$$) slope1=2*max$$ ."&vbCrLf 
+	strCommand=strCommand+"GRAPH"&vbCrLf 
+	If (iXDF=1) Then strCommand=strCommand+"  /SCATTERPLOT(OVERLAY)="+strVar4+"$$ "+strPrb4+"$$  With slope1 slope2 (PAIR)"&vbCrLf 
+	If (iXDF<>1) Then strCommand=strCommand+"  /SCATTERPLOT(OVERLAY)="+strVar4+"$$ "+strVar4+"$$  With slope1 slope2 (PAIR)"&vbCrLf 
+	strCommand=strCommand+"  /MISSING=LISTWISE ."&vbCrLf 
+End Sub
+
+Sub LoadDist
+	nXDF=4
+	ReDim strXDF(nXDF)
+	strXDF(0)=""
+	strXDF(1)="IDF"
+	strXDF(2)="CDF"
+	strXDF(3)="NCDF"
+	nDist=16
+	ReDim strDist(nDist)
+	ReDim DistType(nDist)
+Rem                                        a,b,s1,s2,s3	equal idf,cdf,ncdf,rv
+	strDist(00)="<select distribution>":	DistType(00)="00000000000"
+	strDist(01)="Beta"		:			DistType(01)="11110111112"
+	strDist(02)="Cauchy"	:			DistType(02)="11110011012"
+	strDist(03)="ChiSq"		:			DistType(03)="11100011111"
+	strDist(04)="Exp"		:			DistType(04)="11100011011"
+	strDist(05)="F"			:			DistType(05)="11110111112"
+	strDist(06)="Gamma"	:			DistType(06)="11110011012"
+	strDist(07)="LaPlace"	:			DistType(07)="11110011000"
+	strDist(08)="Logistic"	:			DistType(08)="11110011012"
+	strDist(09)="lNormal"	:			DistType(09)="11110111012"
+	strDist(10)="Normal"	:			DistType(10)="00110111002"
+	strDist(11)="Pareto"		:			DistType(11)="11110011012"
+	strDist(12)="Poisson"	:			DistType(12)="11100001000"
+	strDist(13)="T"			:			DistType(13)="11100011111"
+	strDist(14)="Uniform"	:			DistType(14)="00110111002"
+	strDist(15)="Weibull"	:			DistType(15)="11110111012"
+
+	ReDim strShape(nDist,2)
+	strShape(00,00)=""						:	strShape(00,01)=""
+	strShape(01,00)="shape1"				:	strShape(01,01)="shape2"
+	strShape(02,00)="loc"					:	strShape(02,01)="scale"
+	strShape(03,00)="df"					:	strShape(03,01)=""
+	strShape(04,00)="shape"				:	strShape(04,01)=""
+	strShape(05,00)="df1"					:	strShape(05,01)="df2"
+	strShape(06,00)="shape"				:	strShape(06,01)="scale"
+	strShape(07,00)="mean"				:	strShape(07,01)="scale"
+	strShape(08,00)="mean"				:	strShape(08,01)="scale"
+	strShape(09,00)="ax"					:	strShape(09,01)="bx"
+	strShape(10,00)="mean"				:	strShape(10,01)="stdev"
+	strShape(11,00)="thresh"				:	strShape(11,01)="shape"
+	strShape(12,00)="mean"				:	strShape(12,01)=""
+	strShape(13,00)="df"					:	strShape(13,01)=""
+	strShape(14,00)="lower"				:	strShape(14,01)="range"
+	strShape(15,00)="ax"					:	strShape(15,01)="bx"
+
+	ReDim xShape1(nDist,3) As Single
+	xShape1(00,00)=0			:xShape1(00,01)=0			:xShape1(00,02)=0
+	xShape1(01,00)=0.25 		:xShape1(01,01)=1.0  		:xShape1(01,02)=200.0
+	xShape1(02,00)=1.0		:xShape1(02,01)=1.000		:xShape1(02,02)=500.0
+	xShape1(03,00)=.25		:xShape1(03,01)=1.0  		:xShape1(03,02)=500.
+	xShape1(04,00)=0.0001		:xShape1(04,01)=1.0  		:xShape1(04,02)=500.0
+	xShape1(05,00)=0.25  		:xShape1(05,01)=1.0  		:xShape1(05,02)=200.0
+	xShape1(06,00)=0.250		:xShape1(06,01)=1.0  		:xShape1(06,02)=200.0
+	xShape1(07,00)=0.25  		:xShape1(07,01)=1.0  		:xShape1(07,02)=200.0
+	xShape1(08,00)=0.25 		:xShape1(08,01)=1.0  		:xShape1(08,02)=200.0
+	xShape1(09,00)=0.25  		:xShape1(09,01)=1.0  		:xShape1(09,02)=200.0
+	xShape1(10,00)=-400.0		:xShape1(10,01)=100  		:xShape1(10,02)=400.0
+	xShape1(11,00)=0.25 		:xShape1(11,01)=1.0  		:xShape1(11,02)=200.0
+	xShape1(12,00)=0.25   		:xShape1(12,01)=1.0  		:xShape1(12,02)=200.0
+	xShape1(13,00)=0.25		:xShape1(13,01)=1.0		:xShape1(13,02)=200.0
+	xShape1(14,00)=-200.0		:xShape1(14,01)=10.0  		:xShape1(14,02)=200.0
+	xShape1(15,00)=0.25 		:xShape1(15,01)=1.0  		:xShape1(15,02)=200.0
+	ReDim xShape2(nDist,3) As Single
+	xShape2(00,00)=0			:xShape2(00,01)=0			:xShape2(00,02)=0
+	xShape2(01,00)=0.25 		:xShape2(01,01)=1.0  		:xShape2(01,02)=200.0
+	xShape2(02,00)=.0001		:xShape2(02,01)=0.5		:xShape2(02,02)=0.9999
+	xShape2(03,00)=0			:xShape2(03,01)=0  		:xShape2(03,02)=0
+	xShape2(04,00)=0	 		:xShape2(04,01)=0  		:xShape2(04,02)=0
+	xShape2(05,00)=0.25   		:xShape2(05,01)=1.0  		:xShape2(05,02)=200.0
+	xShape2(06,00)=0.25		:xShape2(06,01)=1.0		:xShape2(06,02)=200.0
+	xShape2(07,00)=0.25   		:xShape2(07,01)=1.0  		:xShape2(07,02)=200.0
+	xShape2(08,00)=0.25 		:xShape2(08,01)=1.0  		:xShape2(08,02)=200.0
+	xShape2(09,00)=0.25   		:xShape2(09,01)=1.0  		:xShape2(09,02)=200.0
+	xShape2(10,00)=.0001		:xShape2(10,01)=20.0  		:xShape2(10,02)=100.0
+	xShape2(11,00)=0.25 		:xShape2(11,01)=1.0  		:xShape2(11,02)=200.0
+	xShape2(12,00)=0   		:xShape2(12,01)=0  		:xShape2(12,02)=0
+	xShape2(13,00)=0			:xShape2(13,01)=0			:xShape2(13,02)=0
+	xShape2(14,00)=.00001		:xShape2(14,01)=20.0  		:xShape2(14,02)=200.0
+	xShape2(15,00)=0.25		:xShape2(15,01)=1.0  		:xShape2(15,02)=200.0
+End Sub
+
+Sub AddToDistList()
+	If (nDistList=0) Then
+		ReDim nCase(0)
+		ReDim iDistrx(0)
+		ReDim Param(5,0)
+		ReDim loParam(5,0)
+		ReDim hiParam(5,0)
+		ReDim iEqualx(0)
+		ReDim iXDFx(0)
+	End If
+	nDistList=nDistList+1
+	ReDim Preserve iDistrx(nDistList)
+	ReDim Preserve Param(5,nDistList)
+	ReDim Preserve loParam(5,nDistList)
+	ReDim Preserve hiParam(5,nDistList)
+	ReDim Preserve iEqualx(nDistList)
+	ReDim Preserve iXDFx(nDistList)
+	ReDim Preserve strDistUse(nDistList) As String
+	Dim iDistList As Integer
+	iDistList=nDistList-1
+	Call ModifyDistList(iDistList)	
+End Sub
+
+Sub CreateSyntaxFile()
+	Dim iVars As Integer
+	Dim strProbName As String
+	Dim strCommand As String
+	Dim iCount As Integer
+	Dim qExecute As Integer
+	qExecute=0
+	For iCount=0 To nDistList-1
+		strCommand=""
+		LoadForm(iCount)
+		If (iCount=0) Then Call CreateSyntaxInit(strCommand)
+		Call CreateSyntaxDist(iCount,strCommand)
+		Call CreateSyntaxMatch(iCount,strCommand,strProbName)
+		Call CreateSyntaxPlot(strCommand,strProbName)
+		If (qExecute=0) Then qExecute=MsgBox("This procedure may take up to 3 minutes.  Click OK to permit execution.",vbOkCancel)
+		If (qExecute=vbOK) Then 
+			objSpssApp.ExecuteCommands strCommand, False
+			While objSpssApp.IsBusy
+				Wait 2
+		 	Wend
+		Else 
+			Exit For
+		End If	 
+	Next iCount
+	If (qExecute=vbOK) Then 
+		strCommand=""
+		Call CreateSyntaxFinal(strCommand)
+		objSpssApp.ExecuteCommands strCommand, False
+		While objSpssApp.IsBusy
+			Wait 2
+	 	Wend
+	 End If
+End Sub
+
+Sub CreateSyntaxFinal(strCommand As String)
+	Dim strProbName As String
+	Dim iCount As Integer
+	strCommand=strCommand+"get file='curve2.sav'."&vbCrLf
+	strCommand=strCommand+"split file by "+strGroup+" ."&vbCrLf 
+	strCommand=strCommand+"correlations vars="
+	strCommand=strCommand+"prob "+strVariable+vbCrLf 
+	For iCount=0 To nDistList-1
+		iDist=iDistrx(iCount)
+		strProbName=Mid(strDist(iDist),1,5)+Format(iCount,"00")+"$"
+		iXDF=iXDFx(iCount)
+		strCommand=strCommand+" "+strProbName 
+	Next iCount
+	strCommand=strCommand+"."+vbCrLf
+End Sub 
+
+Sub LoadForm(iCount)
+	iDist=iDistrx(iCount)
+	Quanta=Param(0,iCount)
+	Quantb=Param(1,iCount)
+	Shape1=Param(2,iCount)
+	Shape2=Param(3,iCount)
+	Shape3=Param(4,iCount)
+	loQuanta=loParam(0,iCount)
+	loQuantb=loParam(1,iCount)
+	loShape1=loParam(2,iCount)
+	loShape2=loParam(3,iCount)
+	loShape3=loParam(4,iCount)
+	hiQuanta=hiParam(0,iCount)
+	hiQuantb=hiParam(1,iCount)
+	hiShape1=hiParam(2,iCount)
+	hiShape2=hiParam(3,iCount)
+	hiShape3=hiParam(4,iCount)
+	qRelation=iEqualx(iCount)
+	iXDF=iXDFx(iCount)
+End Sub
+
+Sub SetEqual()
+	qRelation=DlgValue("grpRelation")
+	If (qRelation=2) Then 
+		Shape2=Shape1
+		loShape2=loShape1
+		hiShape2=hiShape1
+		DlgText "Shape2",Format(Shape2)
+		DlgText "loShape2",Format(loShape2)
+		DlgText "hiShape2",Format(hiShape2)
+		DlgEnable "Shape2",False
+		DlgEnable "loShape2",False
+		DlgEnable "hiShape2",False
+	Else
+		DlgEnable "Shape2",True
+		DlgEnable "loShape2",True
+		DlgEnable "hiShape2",True
+	End If
+End Sub
+
+Sub LoadParam()
+	DlgEnable "Shape1",True
+	DlgEnable "loShape1",True
+	DlgEnable "hiShape1",True
+	DlgEnable "Shape2",True
+	DlgEnable "loShape2",True
+	DlgEnable "hiShape2",True
+	DlgValue "grpRelation",qRelation
+	If (nDistList>0) Then DlgEnable"cmdNext",True
+   	DlgText "lstDistText",strDist(iDist)
+	Dim iValue As Integer
+	iValue=0
+	If (Mid(DistType(iDist),1,1)="1") Then iValue=1.
+	DlgVisible "Quanta",iValue
+	DlgVisible "loQuanta",iValue
+	DlgVisible "hiQuanta",iValue
+	DlgVisible "txtQuanta",iValue
+	iValue=0
+	If (Mid(DistType(iDist),2,1)="1") Then iValue=1.
+	DlgVisible "Quantb",iValue
+	DlgVisible "loQuantb",iValue
+	DlgVisible "hiQuantb",iValue
+	DlgVisible "txtQuantb",iValue
+	iValue=0
+	If (Mid(DistType(iDist),3,1)="1") Then iValue=1.
+	DlgVisible "Shape1",iValue
+	DlgVisible "loShape1",iValue
+	DlgVisible "hiShape1",iValue
+	DlgVisible "txtShape1",iValue
+	iValue=0
+	If (Mid(DistType(iDist),4,1)<>"0") Then iValue=1.
+	DlgVisible "Shape2",iValue
+	DlgVisible "loShape2",iValue
+	DlgVisible "hiShape2",iValue
+	DlgVisible "txtShape2",iValue
+	iValue=0
+	If (Mid(DistType(iDist),5,1)="1") Then iValue=1.
+	DlgVisible "Shape3",iValue
+	DlgVisible "loShape3",iValue
+	DlgVisible "hiShape3",iValue
+	DlgVisible "txtShape3",iValue
+	DlgVisible ("grpboxRelation",1)
+	iValue=0
+	If (Mid(DistType(iDist),6,1)="1") Then iValue=1
+	DlgVisible "grpRelation",iValue
+	DlgVisible "optFree",1
+	DlgVisible "optLT",iValue
+	DlgVisible "optEQ",iValue
+	DlgVisible "optGT",iValue
+Rem	If (qRelation=2) Then DlgText "chkRelation",strShape(iDist,1)+" = "+strShape(iDist,0)
+Rem	If (qRelation=3) Then DlgText "chkGT",strShape(iDist,1)+" > "+strShape(iDist,0)
+	DlgVisible ("grpboxDist",1)
+   	iValue=0
+	If (Mid(DistType(iDist),7,1)="1") Then iValue=1
+	DlgVisible "optIDF",iValue
+	iValue=0
+	If (Mid(DistType(iDist),8,1)="1") Then iValue=1
+	DlgVisible "optCDF",iValue
+	iValue=0
+	If (Mid(DistType(iDist),9,1)="1") Then iValue=1 
+	DlgVisible "optNCDF",iValue
+	DlgValue "grpDist",iXDF-1
+	DlgVisible "txtInitial",True
+	DlgVisible "txtLower",True
+	DlgVisible "txtUpper",True
+	Call MakeForm()
+	DlgVisible "txtForm",True
+	DlgVisible "txtPerform",True
+	If (qModify=0) Then Call SelectiDist()
+	If (Mid(DistType(iDist),1,1)="1") Then 
+    	DlgText "Quanta",Format(Quanta,"####0.######")
+    	DlgText "loQuanta",Format(loQuanta,"####0.######")
+    	DlgText "hiQuanta",Format(hiQuanta,"####0.######")
+	End If
+	If (Mid(DistType(iDist),2,1)="1") Then 
+    	DlgText "Quantb",Format(Quantb,"####0.######")
+    	DlgText "loQuantb",Format(loQuantb,"####0.######")
+    	DlgText "hiQuantb",Format(hiQuantb,"####0.######")
+	End If
+	If (Mid(DistType(iDist),3,1)="1") Then 
+    	DlgText "Shape1",Format(Shape1,"####0.######")
+    	DlgText "loShape1",Format(loShape1,"####0.######")
+    	DlgText "hiShape1",Format(hiShape1,"####0.######")
+	End If
+	If (Mid(DistType(iDist),4,1)<>"0") Then 
+	   	DlgText "Shape2",Format(Shape2,"####0.######")
+    	DlgText "loShape2",Format(loShape2,"####0.######")
+    	DlgText "hiShape2",Format(hiShape2,"####0.######")
+	End If
+	If (Mid(DistType(iDist),5,1)="1" Or iXDF=3) Then 
+    	DlgText "Shape3",Format(Shape3,"####0.######")
+    	DlgText "loShape3",Format(loShape3,"####0.######")
+   		DlgText "hiShape3",Format(hiShape3,"####0.######")
+	End If
+End Sub
+
+Sub ModifyDistList(iDistList As Integer)
+	iDistrx(iDistList)=iDist
+	Param(0,iDistList)=Quanta
+	Param(1,iDistList)=Quantb
+	Param(2,iDistList)=Shape1
+	Param(3,iDistList)=Shape2
+	Param(4,iDistList)=Shape3
+	loParam(0,iDistList)=loQuanta
+	loParam(1,iDistList)=loQuantb
+	loParam(2,iDistList)=loShape1
+	loParam(3,iDistList)=loShape2
+	loParam(4,iDistList)=loShape3
+	hiParam(0,iDistList)=hiQuanta
+	hiParam(1,iDistList)=hiQuantb
+	hiParam(2,iDistList)=hiShape1
+	hiParam(3,iDistList)=hiShape2
+	hiParam(4,iDistList)=hiShape3
+	iEqualx(iDistList)=qRelation
+	iXDFx(iDistList)=iXDF
+	Call MakeForm()
+	strDistUse(iDistList)=strForm
+	DlgListBoxArray "lstDistAnalyze", strDistUse()
+	DlgValue "lstDistAnalyze",iDistList
+	DlgValue "lstDistAnalyze",-1
+End Sub
+	
+Sub DeleteDistList(iDistList As Integer)
+	nDistList=nDistList-1
+	Dim iList As Integer
+	For iList=iDistList To nDistList-1
+		iDistrx(iList)=iDistrx(iList+1)
+		Dim iParam As Integer
+		For iParam=0 To 4
+			Param(iParam,iList)=Param(iParam,iList+1)
+			loParam(iParam,iList)=loParam(iParam,iList+1)
+			hiParam(iParam,iList)=hiParam(iParam,iList+1)
+		Next iParam
+		iEqualx(iList)=iEqualx(iList+1)
+		iXDFx(iList)=iXDFx(iList+1)
+		strDistUse(iList)=strDistUse(iList+1)
+	Next iList
+	ReDim Preserve iDistrx(nDistList)
+	ReDim Preserve Param(5,nDistList)
+	ReDim Preserve loParam(5,nDistList)
+	ReDim Preserve hiParam(5,nDistList)
+	ReDim Preserve iEqualx(nDistList)
+	ReDim Preserve iXDFx(nDistList)
+	strDistUse(nDistList)=""
+	ReDim Preserve strDistUse(nDistList) As String
+	DlgListBoxArray "lstDistAnalyze", strDistUse()
+End Sub
+
+Function DialogDistInfo(strDialogItem As String, intAction As Integer, intSuppValue As Integer) As Boolean
+    Select Case intAction
+	    Case 1 ' Dialog box initialization
+	        		ReDim strDistUse(0) As String
+				DlgListBoxArray "lstDistAnalyze",strDistUse()
+	    		Dim iCount As Integer, nCount As Integer
+	    		nCount=DlgCount()
+	    		For iCount=0 To nCount-1
+					DlgVisible iCount,False 
+				Next iCount	    		
+		    	DlgEnable "cmdCancel", True
+		    	DlgEnable "cmdNext", False
+				DlgEnable "lstDist",True
+				DlgEnable "lstDistText",False
+		    	DlgVisible "cmdCancel", True
+		    	DlgVisible "cmdBack",True
+		    	DlgVisible "cmdNext", True
+				DlgVisible "lstDist",True
+				DlgVisible "lstDistText",True
+				qEditMode=0
+	    		iDist=0 
+				qRelation=0
+				iXDF=0
+				nDistList=0
+				iDistAnalyze=0
+				qModify=0
+				DlgText "lstDistText","<select distribution>"
+	    Case 2 
+	If (qEditMode>0) Then Call DialogEditInfo(strDialogItem,intAction,intSuppValue)
+				DlgVisible "cmdModify",False
+	        Select Case strDialogItem
+	        	Case "cmdNext"
+		        		dialogDistInfo=False
+		        		qRunJob=1
+	        	Case "cmdCancel"
+	        		dialogDistInfo=False
+	        		qRunJob=0
+	        	Case "cmdBack"
+	        		If (qEditMode=0) Then 
+		        		dialogDistInfo=False
+		        		qRunJob=-2
+		        	ElseIf (qEditMode>0) Then 
+		        		dialogDistInfo=True
+		        		Call ResetEditMode(0)
+		        		DlgFocus "cmdNext"
+		        	End If
+		        	If (qModify=1) Then 
+		        		DlgText "cmdModify", "Apply Change"
+		        		DlgVisible "cmdModify",True
+		        	End If
+		        	qModify=0
+		      Case "cmdModify"
+		      	If (DlgText("cmdModify")="Apply Change") Then 
+		        		Call ModifyDistList(iDistAnalyze) 
+		        		DlgValue "lstDistAnalyze",-1
+		        		DlgValue "lstDist",-1
+	      	  		dialogDistInfo=True
+	        			qModify=0
+	        			DlgEnable "cmdAdd",False
+			      End If
+				If (DlgText ("cmdModify")="Delete Fit") Then
+					Call DeleteDistList(iDistAnalyze)
+					dialogDistInfo=True
+					If (nDistList<=0) Then DlgEnable"cmdNext",False
+					DlgEnable "cmdAdd",False
+					DlgValue "lstDist",-1
+				End If
+	        	Case "grpDist"
+				If (qModify>0) Then 
+					DlgText "cmdModify","Apply Change"
+					DlgVisible "cmdModify",True
+				End If
+	        		iXDF=DlgValue("grpDist")+1
+	        			Call MakeForm()
+					Call SelectiDist()
+	    			If (iXDF=3) Then 
+				    	DlgText "Shape3",Format(Shape3)
+				    	DlgText "loShape3",Format(loShape3)
+			    		DlgText "hiShape3",Format(hiShape3)
+					End If
+				Case "grpRelation"
+					qRelation=DlgValue("grpRelation")
+					Call SelectiDist()
+					Call SetEqual()   
+					Call MakeForm()
+					If (qModify>0) Then 
+						DlgText "cmdModify","Apply Change"
+						DlgVisible "cmdModify",True
+					End If
+		      Case "cmdAdd"
+		      	Call AddToDistList()
+		        	dialogDistInfo=True
+		        	DlgEnable "cmdNext",True
+	      	  	DlgValue "lstDistAnalyze",nDistList-1
+	        		DlgValue "lstDistAnalyze",-1
+		        	DlgEnable "cmdAdd",False
+				DlgValue "lstDist",-1
+	        	Case "lstDist"
+	        		qRelation=0
+	        		qModify=0
+	        		iDist=DlgValue("lstDist")
+	        		iDistx=iDist
+				DlgVisible "lstDistAnalyze",True
+				DlgVisible "cmdAdd",True
+				Quanta=50
+				Quantb=10
+				loQuanta=-200.0000000000000
+				hiQuanta=200.0000000000000
+				loQuantb=0.000001
+				hiQuantb=200.0000000000000
+				Dim iValue As Integer
+				If (Mid(DistType(iDist),7,1)="1") Then iXDF=1
+				If (Mid(DistType(iDist),8,1)="1") And (Mid(DistType(iDist),7,1)="0") Then iXDF=2
+				Call LoadParam()
+				DlgEnable "cmdAdd",True
+				DlgValue "lstDistAnalyze",-1
+			   Case "lstDistAnalyze"
+				qModify=1
+		      	iDistAnalyze=DlgValue("lstDistAnalyze")
+		      	Call LoadForm(iDistAnalyze)
+		      	DlgValue "lstDist",iDist
+		      	Call LoadParam()
+		      	Call SetEqual()
+		      	DlgValue "grpDist",iXDF-1
+				DlgVisible "cmdModify",True
+				DlgText "cmdModify","Delete Fit"
+				Call SelectiDist() 
+		    End Select
+	    Case 3 ' losing focus
+	    Case 4 ' gaining focus
+	If (qEditMode>0) Then Call DialogEditInfo(strDialogItem,intAction,intSuppValue)
+	    	Select Case strDialogItem
+	    		Case "Quanta","loQuanta","hiQuanta","Quantb","loQuantb","hiQuantb"
+	    			qEditMode=1
+	    		Case "Shape1","loShape1","hiShape1","Shape2","loShape2","hiShape2"
+	    			qEditMode=1
+	    		Case "Shape3","loShape3","hiShape3"
+	    			qEditMode=1
+			End Select
+			If (qEditMode>0) Then 
+	    			strFocus=strDialogItem
+	    			Call ResetEditMode(1)
+			End If
+	End Select
+End Function
+
+Sub DialogGetDistInfo
+	ReDim strDistUse(0) As String 
+	Begin Dialog UserDialog 540,240,"Test for fit to Distribution.",.DialogDistInfo
+		PushButton 450,7,90,20,"Finish",.cmdNext
+		PushButton 450,29,90,20,"Back...",.cmdBack
+		PushButton 450,51,90,20,"Cancel",.cmdCancel
+		PushButton 450,73,90,40,"**  Add Fit  **",.cmdAdd
+		PushButton 450,115,90,20,"Delete Fit",.cmdModify
+		ListBox 20,28,150,98,strDist(),.lstDist
+		TextBox 20,7,150,21,.lstDistText
+		GroupBox 174,01,272,136,"Edit Mode",.grpboxEdit
+		Text 270,10,50,14,"Initial",.txtInitial
+		Text 330,10,50,14,"Lower",.txtLower
+		Text 390,10,50,14,"Upper",.txtUpper
+		Text 180,031,75,14,"b0: a",.txtQuanta
+		TextBox 260,027,60,21,.Quanta
+		TextBox 320,027,60,21,.loQuanta
+		TextBox 380,027,60,21,.hiQuanta
+		Text 180,052,75,14,"b1: b",.txtQuantb
+		TextBox 260,048,60,21,.Quantb
+		TextBox 320,048,60,21,.loQuantb
+		TextBox 380,048,60,21,.hiQuantb
+		Text 178,073,75,14,"Shape1:",.txtShape1
+		TextBox 260,069,60,21,.Shape1
+		TextBox 320,069,60,21,.loShape1
+		TextBox 380,069,60,21,.hiShape1
+		Text 178,094,75,14,"Shape2:",.txtShape2
+		TextBox 260,090,60,21,.Shape2
+		TextBox 320,090,60,21,.loShape2
+		TextBox 380,090,60,21,.hiShape2
+		Text 178,115,75,14,"Shape3:",.txtShape3
+		TextBox 260,111,60,21,.Shape3
+		TextBox 320,111,60,21,.loShape3
+		TextBox 380,111,60,21,.hiShape3
+		GroupBox 08,134,220,73,"Distribution Form",.grpboxDist
+		OptionGroup .grpDist
+			OptionButton 18,148,180,14,"Inverse Function (IDF)",.optIDF
+			OptionButton 18,166,200,14,"Cumulative Function (CDF)",.optCDF
+			OptionButton 18,184,205,14,"NonCentral Function (NCDF)",.optNCDF
+		GroupBox 234,139,300,30,"Relation of Shape1 and Shape2",.grpboxRelation
+		OptionGroup .grpRelation
+			OptionButton 239,153,065,14,"free",.optFree
+			OptionButton 310,153,065,14,"b3 < b2",.optLT
+			OptionButton 381,153,065,14,"b3 = b2",.optEQ
+			OptionButton 452,153,065,14,"b3 > b2",.optGT
+		Text 20,211,200,15," ",.txtPerform
+		Text 231,177,305,17,"Form:",.txtForm
+		ListBox 232,197,305,40,strDistUse( ),.lstDistAnalyze
+	End Dialog
+	Dim dlg As UserDialog
+	Dialog dlg
+End Sub
+
+Sub DialogEditInfo(strDialogItem As String, intAction As Integer, intSuppValue As Integer)
+    Select Case intAction
+	    Case 4 ' gaining focus
+	    	Select Case strFocus
+	    		Case "Quanta", "loQuanta", "hiQuanta"
+	    			Select Case strFocus
+			    		Case "Quanta"
+			    			Quanta=Val(DlgText("Quanta"))
+	    					If (Quanta<loQuanta) Then loQuanta=Quanta
+	    					If (Quanta>hiQuanta) Then hiQuanta=Quanta
+	    				Case "loQuanta"
+		    				loQuanta=Val(DlgText("loQuanta"))
+		    				If (loQuanta>Quanta) Then Quanta=loQuanta
+		    				If (loQuanta>hiQuanta) Then hiQuanta=loQuanta
+		    			Case "hiQuanta"
+	    					hiQuanta=Val(DlgText("hiQuanta"))
+	    					If (hiQuanta<Quanta) Then Quanta=hiQuanta
+		    				If (hiQuanta<loQuanta) Then loQuanta=hiQuanta
+		    		End Select
+		    		DlgText "Quanta",Format(Quanta,"####0.######")
+		    		DlgText "loQuanta",Format(loQuanta,"####0.######")
+		    		DlgText "hiQuanta",Format(hiQuanta,"####0.######")
+	    		Case "Quantb", "loQuantb", "hiQuantb"
+	    			Select Case strFocus
+			    		Case "Quantb"
+			    			Quantb=Val(DlgText("Quantb"))
+	    					If (Quantb<loQuantb) Then loQuantb=Quantb
+	    					If (Quantb>hiQuantb) Then hiQuantb=Quantb
+	    				Case "loQuantb"
+		    				loQuantb=Val(DlgText("loQuantb"))
+		    				If (loQuantb>Quantb) Then Quantb=loQuantb
+		    				If (loQuantb>hiQuantb) Then hiQuantb=loQuantb
+		    			Case "hiQuantb"
+	    					hiQuantb=Val(DlgText("hiQuantb"))
+	    					If (hiQuantb<Quantb) Then Quantb=hiQuantb
+		    				If (hiQuantb<loQuantb) Then loQuantb=hiQuantb
+		    		End Select
+		    		DlgText "Quantb",Format(Quantb,"####0.######")
+		    		DlgText "loQuantb",Format(loQuantb,"####0.######")
+		    		DlgText "hiQuantb",Format(hiQuantb,"####0.######")
+	    		Case "Shape1", "loShape1", "hiShape1"
+	    			Select Case strFocus
+			    		Case "Shape1"
+			    			Shape1=Val(DlgText("Shape1"))
+	    					If (Shape1<loShape1) Then loShape1=Shape1
+	    					If (Shape1>hiShape1) Then hiShape1=Shape1
+	    				Case "loShape1"
+		    				loShape1=Val(DlgText("loShape1"))
+		    				If (loShape1>Shape1) Then Shape1=loShape1
+		    				If (loShape1>hiShape1) Then hiShape1=loShape1
+		    			Case "hiShape1"
+	    					hiShape1=Val(DlgText("hiShape1"))
+	    					If (hiShape1<Shape1) Then Shape1=hiShape1
+		    				If (hiShape1<loShape1) Then loShape1=hiShape1
+		    		End Select
+		    		DlgText "Shape1",Format(Shape1)
+		    		DlgText "loShape1",Format(loShape1)
+		    		DlgText "hiShape1",Format(hiShape1)
+				xShape1(iDist,0)=loShape1
+				xShape1(iDist,1)=Shape1
+				xShape1(iDist,2)=hiShape1
+	    			If (qRelation=2) Then
+	    				Shape2=Shape1
+	    				loShape2=loShape1
+	    				hiShape2=hiShape1 
+		    			DlgText "Shape2",Format(Shape2)
+		    			DlgText "loShape2",Format(loShape2)
+	    				DlgText "hiShape2",Format(hiShape2)
+	    			End If 
+	    			If (qRelation=1) Then 
+	    				If (Shape1<0.001) Then Shape1=0.001
+	    				If (loShape1<0.001) Then loShape1=0.001
+	    				If (hiShape1<0.001) Then hiShape1=0.001 
+		    			DlgText "Shape1",Format(Shape1)
+		    			DlgText "loShape1",Format(loShape1)
+	    				DlgText "hiShape1",Format(hiShape1)
+	    			End If
+				xShape2(iDist,0)=loShape2
+				xShape2(iDist,1)=Shape2
+				xShape2(iDist,2)=hiShape2
+	    		Case "Shape2", "loShape2", "hiShape2"
+	    			Select Case strFocus
+			    		Case "Shape2"
+			    			Shape2=Val(DlgText("Shape2"))
+	    					If (Shape2<loShape2) Then loShape2=Shape2
+	    					If (Shape2>hiShape2) Then hiShape2=Shape2
+	    				Case "loShape2"
+		    				loShape2=Val(DlgText("loShape2"))
+		    				If (loShape2>Shape2) Then Shape2=loShape2
+		    				If (loShape2>hiShape2) Then hiShape2=loShape2
+		    			Case "hiShape2"
+	    					hiShape2=Val(DlgText("hiShape2"))
+	    					If (hiShape2<Shape2) Then Shape2=hiShape2
+		    				If (hiShape2<loShape2) Then loShape2=hiShape2
+		    		End Select
+	    			If (qRelation=3) Then 
+	    				If (Shape2<0.001) Then Shape2=0.001
+	    				If (loShape2<0.001) Then loShape2=0.001
+	    				If (hiShape2<0.001) Then hiShape2=0.001 
+		    			DlgText "Shape2",Format(Shape2)
+		    			DlgText "loShape2",Format(loShape2)
+	    				DlgText "hiShape2",Format(hiShape2)
+	    			End If
+		    		DlgText "Shape2",Format(Shape2,"####0.######")
+		    		DlgText "loShape2",Format(loShape2,"####0.######")
+		    		DlgText "hiShape2",Format(hiShape2,"####0.######")
+				xShape2(iDist,0)=loShape2
+				xShape2(iDist,1)=Shape2
+				xShape2(iDist,2)=hiShape2
+	    		Case "Shape3", "loShape3", "hiShape3"
+	    			Select Case strFocus
+			    		Case "Shape3"
+			    			Shape3=Val(DlgText("Shape3"))
+	    					If (Shape3<loShape3) Then loShape3=Shape3
+	    					If (Shape3>hiShape3) Then hiShape3=Shape3
+	    				Case "loShape3"
+		    				loShape3=Val(DlgText("loShape3"))
+		    				If (loShape3>Shape3) Then Shape3=loShape3
+		    				If (loShape3>hiShape3) Then hiShape3=loShape3
+		    			Case "hiShape3"
+	    					hiShape3=Val(DlgText("hiShape3"))
+	    					If (hiShape3<Shape3) Then Shape3=hiShape3
+		    				If (hiShape3<loShape3) Then loShape3=hiShape3
+		    		End Select
+		    		DlgText "Shape3",Format(Shape3,"####0.######")
+		    		DlgText "loShape3",Format(loShape3,"####0.######")
+		    		DlgText "hiShape3",Format(hiShape3,"####0.######")
+	    	End Select
+	    	If (strDialogItem<>"cmdBack") Then 	Call ResetEditMode(0)
+	End Select
+End Sub
+
+

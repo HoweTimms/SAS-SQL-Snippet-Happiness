@@ -1,0 +1,157 @@
+CREATE    procedure make_RV_debttransNEW
+
+as
+if exists (select * from sysobjects where id = object_id(N'[dbo].[temp_rv1]') and OBJECTPROPERTY(id, N'IsUserTable') = 1)
+drop table [dbo].[temp_rv1]
+
+SELECT src_wk_ref
+	,MAX(cpln2.cre_dat) as max_date 
+
+into temp_rv1
+
+FROM main_data_ci.dbo.cms_pln cpln2
+join main_data_ci.dbo.led_tran ltran on ltran.acc_cd=cpln2.src_wk_ref
+WHERE 
+cpln2.cre_dat <= ltran.book_dat
+group by src_wk_ref
+
+
+
+
+if exists (select * from sysobjects where id = object_id(N'[dbo].[temp_rv2]') and OBJECTPROPERTY(id, N'IsUserTable') = 1)
+drop table [dbo].[temp_rv2]
+
+SELECT [debt-code],  [tx-date], (CASE WHEN (LEFT([tran-code],3)='DR6' OR [tran-code]='JE6100') THEN -1 ELSE 1 END) * [tx-amount] AS [tx-amount], 
+	CASE WHEN ([rep-code] = 'PNDL' OR
+		LEFT([rep-code], 1) IN ('W', 'X') OR
+		([rep-code] IN ('GPPP', 'EVPP') AND [tx-amount]<500 AND [tx-amount]>0))
+    		THEN 'P'
+    	ELSE 'T'
+    	END AS Type,
+	CASE WHEN ([tran-code]='DR1500'  OR [tran-code]='DR5000' OR [tran-code]='DR6310' OR [tran-code]='DR1888')
+		THEN 1
+	ELSE 0
+	END AS is_vendor_pmt
+into temp_rv2
+FROM main_data.dbo.[debt-transAppend]
+WHERE ([tran-code]='JE6100' OR LEFT([tran-code],2)='DR')
+
+
+insert into temp_rv2
+SELECT 
+--distinct
+ ltran.acc_cd AS [debt-code], ltran.book_dat AS [tx-date], 0-ltran.amt AS [tx-amount], 
+	CASE
+	WHEN cpln.temp_cd IN (select temp_cd from tblPlanTranslation where [Plan]='Set-Up')
+
+        --'CONVC', 'SET', 'LTSET', 'IVA', 'PNDL') 
+	THEN 'P'
+	ELSE 'T'
+	END AS Type, is_vendor_pmt
+
+FROM main_data_ci.dbo.led_tran ltran
+
+JOIN data_warehouse.dbo.tblCITranCodes CITC ON 
+	(CITC.trn_cd + ISNULL(CITC.trn_ref,'')= ltran.trn_cd + ISNULL(ltran.trn_ref,'') AND
+	CITC.is_cash_flag=-1)
+left join temp_rv1 on temp_rv1.src_wk_ref=ltran.acc_cd
+
+left JOIN main_data_ci.dbo.cms_pln cpln ON
+	cpln.src_wk_ref = temp_rv1.src_wk_ref AND
+	cpln.pln_stat <> 'A' AND cpln.pln_stat <> 'F' AND
+	(cpln.canc_dat IS NULL OR cpln.canc_dat > ltran.book_dat)
+ 	AND
+	--(cpln.cre_dat = temp_rv1.max_date
+	--and 
+	cre_dat <= ltran.book_dat
+
+WHERE ltran.book_dat <CAST(GETDATE() AS VARCHAR(11)) AND
+	 ltran.book_dat >'11-JAN-2002'
+
+if exists (select * from sysobjects where id = object_id(N'[dbo].[RV_debttrans]') and OBJECTPROPERTY(id, N'IsUserTable') = 1)
+drop table [dbo].[RV_debttrans]
+
+SELECT  [debt-code], [tx-date], [tx-amount], Type, is_vendor_pmt,
+convert(datetime,null) as cre_dat,
+convert(integer,null) as plan_num,
+convert(integer,null) as plan_rev,
+convert(varchar(12),null) as usr_cd,
+convert(varchar(12),null) as owner,
+convert(datetime,null) as CMAU_date
+--convert(datetime,null) as new_cre_dat
+into RV_debttrans FROM temp_rv2
+	INNER JOIN main_data_ci.dbo.cms_strings cs ON cs.wk_ref=[debt-code] AND block_num = 2 AND sys='LED'
+	WHERE  cs.strg7 <> 'BCUK05EXCL' AND LEFT(cs.strg7,4)<>'MBIR' AND LEFT(cs.strg7,3)<>'CFS'
+	AND LEFT([debt-code],6) NOT IN ('888888', '999999', '434917', '434918')
+	order by [debt-code]
+
+drop table temp_rv1
+
+drop table temp_rv2
+
+CREATE  INDEX [date_idx] ON [data_warehouse].[dbo].[RV_debttrans]([tx-date]) ON [PRIMARY]
+CREATE  INDEX [rv_debtcode] ON [data_warehouse].[dbo].[RV_debttrans]([debt-code]) ON [PRIMARY]
+
+--update to have latest cre_dat for tx-date
+--update RV_debttrans
+--set RV_debttrans.cre_dat=p.cre_dat from vw_cms_pln p join RV_debttrans on src_wk_ref=[debt-code] and p.cre_dat<=RV_debttrans.[tx-date]
+
+select [debt-code],[tx-date],pln_num,max(p.cre_dat) as cre_datx 
+into ##temp23
+from RV_debttrans r 
+join  vw_plans_filtered p
+on src_wk_ref=[debt-code]
+where p.cre_dat<=[tx-date]
+group by [debt-code],[tx-date],r.cre_dat,pln_num
+
+update RV_debttrans
+set cre_dat=
+(select max(cre_datx) from ##temp23 where ##temp23.[debt-code]=RV_debttrans.[debt-code] and cre_datx<=[tx-date] and ##temp23.[tx-date]=RV_debttrans.[tx-date])
+
+update RV_debttrans
+set plan_num=pln_num from vw_plans_filtered p join RV_debttrans r on r.[cre_dat]=p.[cre_dat] and [debt-code]=src_wk_ref
+
+drop table ##temp23
+
+--update to have max lpan number for given date
+--update RV_debttrans
+--set plan_num = pln_num from vw_cms_pln p join RV_debttrans r on src_wk_ref=[debt-code] and p.cre_dat=r.cre_dat
+
+--second pass in case more than one plan on a day
+--update RV_debttrans
+--set plan_num = pln_num from vw_cms_pln p join RV_debttrans r on src_wk_ref=[debt-code] and p.cre_dat=r.cre_dat and pln_num>=plan_num
+
+select src_wk_ref,cre_dat,pln_num,max(act_rev) as rev_no into #temp_pln 
+from vw_cms_pln p group by src_wk_ref,cre_dat,pln_num
+
+update RV_debttrans
+set plan_rev=rev_no from #temp_pln p join RV_debttrans r on src_wk_ref=[debt-code] and p.cre_dat=r.cre_dat
+
+update RV_debttrans
+set usr_cd = p.usr_cd from vw_cms_pln p 
+join RV_debttrans r on src_wk_ref=[debt-code] 
+--and p.cre_dat=r.cre_dat 
+and pln_num=plan_num
+
+select [debt-code],[tx-date],[cre_dat],usr_cd, convert(varchar(12),null) as owner into ##temp_owner from RV_debttrans 
+where cre_dat is not null
+
+update ##temp_owner
+ set owner=
+		(select assignee from vw_CMAU_trans where dat=(select max(dat) from vw_CMAU_trans 
+		where wk_ref=[debt-code] and dat<=cre_dat) and [debt-code]=wk_ref
+		and seq_num=(select max(seq_num) from vw_CMAU_trans where wk_ref=[debt-code] and dat<=cre_dat))
+
+update RV_debttrans
+set owner=t.owner from RV_debttrans r join ##temp_owner t 
+on r.[debt-code]=t.[debt-code] 
+and r.[tx-date]=t.[tx-date] and t.cre_dat=r.cre_dat
+and t.usr_cd=r.usr_cd
+drop table ##temp_owner
+
+CREATE  INDEX [plnnum_idx] ON [data_warehouse].[dbo].[RV_debttrans]([plan_num]) ON [PRIMARY]
+
+--and r.pln_num>=p.plan_num
+
+GO
+	

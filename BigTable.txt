@@ -1,0 +1,1100 @@
+
+select 
+	acc_cd
+	,  amt as interest_applied
+	,  vdat as interest_last_applied
+
+into 	bttemp_int_x
+
+from 	vw_led_tran
+join 	vw_cms_case on wk_ref=acc_cd
+
+where 	trn_ref='ODBT'
+
+/* ODBT : Original Debt Balance Transfered */
+/* ? Join is a many to many join? */
+
+
+/*****************************************/
+
+SELECT acc_cd
+	,  sum(amt) as interest_applied
+	,  max(vdat) as interest_last_applied
+
+into 	bttemp_int_y
+
+FROM 	vw_led_tran
+
+WHERE 	(((vdat)<=getDate()) AND ((trn_ref)='PENIN'))
+GROUP BY acc_cd
+
+/*  PENIN : Penalty Interest */
+
+/*****************************************/
+
+update bttemp_int_x
+
+set 	interest_applied=y.interest_applied
+	, interest_last_applied=y.interest_last_applied
+ 
+from 	bttemp_int_x x 
+
+join 	bttemp_int_y y on y.acc_cd=x.acc_cd
+
+/*****************************************/
+
+update 	bttemp_int_x
+set 	interest_applied=0 
+where 	acc_cd not in (select acc_cd from bttemp_int_y)
+
+/*****************************************/
+
+SELECT 	la.acc_cd
+	,  cast(la.ars_bal as money) AS opening_bal
+	,  cast(vw_led_acc_pen.int_margin as money) as monthly_ir
+	,  interest_last_applied
+	,  cast(bttemp_int_x.interest_applied as money) as interest_applied
+	,  cast(ars_bal*(int_margin/100)/365 as money) AS daily_interest_amount
+	,  cast (ars_bal*([int_margin]/100)/365*(DateDiff(d,interest_last_applied,dateadd(d,-1,getdate()))) as money) AS interest_accrued 
+ 
+
+INTO 	bttemp_ir_stuff
+FROM 	vw_led_acc la 
+LEFT JOIN	vw_led_acc_pen ON la.acc_cd = vw_led_acc_pen.acc_cd
+LEFT JOIN	bttemp_int_x ON la.acc_cd = bttemp_int_x.acc_cd
+WHERE la.ars_bal>0
+
+/*****************************************/
+
+ALTER TABLE bttemp_ir_stuff WITH NOCHECK ADD 
+ CONSTRAINT [PK_acc_cd_ir] PRIMARY KEY  CLUSTERED 
+ (
+  [acc_cd]
+ )  ON [PRIMARY]
+GO
+
+/*****************************************/
+
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+ 
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+
+/*****************************************/
+
+
+ 
+create  procedure sp_MakeDebtCounselorTempTable
+as
+ 
+DECLARE @myDate datetime
+ 
+
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+ 
+
+/*****************************************/ 
+
+IF OBJECT_ID('bttemp_debt_counselor_bpcd_wkseq') IS NOT NULL
+    drop table bttemp_debt_counselor_bpcd_wkseq
+ 
+IF OBJECT_ID('bttemp_bp_ref_to_bp_cd') IS NOT NULL
+    drop table bttemp_bp_ref_to_bp_cd
+ 
+IF OBJECT_ID('bttemp_add_cd_from_bp_cd') IS NOT NULL
+    drop table bttemp_add_cd_from_bp_cd
+ 
+IF OBJECT_ID('bttemp_address_for_add_cd') IS NOT NULL
+    drop table bttemp_address_for_add_cd
+ 
+IF OBJECT_ID('bttemp_debt_counsx') IS NOT NULL
+    drop table bttemp_debt_counsx
+ 
+IF OBJECT_ID('bttemp_debt_counsy') IS NOT NULL
+    drop table bttemp_debt_counsy
+ 
+IF OBJECT_ID('bttemp_dc_dups') IS NOT NULL
+    drop table bttemp_dc_dups
+ 
+
+
+/*****************************************/
+
+SELECT 	vw_cms_ass_bp.bp_cd
+	,  vw_cms_ass_bp.wk_seq
+
+INTO 	bttemp_debt_counselor_bpcd_wkseq
+
+FROM 	vw_cms_ass_bp
+
+WHERE 	(((vw_cms_ass_bp.ass_cd)='DCO' Or (vw_cms_ass_bp.ass_cd)='INSOL'))
+
+GROUP BY vw_cms_ass_bp.bp_cd
+	,  vw_cms_ass_bp.wk_seq
+ 
+
+/*****************************************/
+
+SELECT 	vw_add_bp.bp_ref
+	,  vw_add_bp.bp_cd
+	,  vw_add_bp.srch_nam
+
+INTO 	bttemp_bp_ref_to_bp_cd
+
+FROM 	vw_add_bp 
+INNER JOIN 	bttemp_debt_counselor_bpcd_wkseq ON vw_add_bp.bp_cd = bttemp_debt_counselor_bpcd_wkseq.bp_cd
+
+GROUP BY vw_add_bp.bp_ref
+	,  vw_add_bp.bp_cd
+	,  vw_add_bp.srch_nam
+ 
+ 
+/*****************************************/
+ 
+SELECT 	bttemp_bp_ref_to_bp_cd.bp_ref
+	,  vw_add_ref_durn.bp_cd
+	,  vw_add_ref_durn.add_cd
+	,  bttemp_bp_ref_to_bp_cd.srch_nam
+
+INTO 	bttemp_add_cd_from_bp_cd
+
+FROM 	vw_add_ref_durn 
+INNER JOIN 	bttemp_bp_ref_to_bp_cd ON vw_add_ref_durn.bp_cd = bttemp_bp_ref_to_bp_cd.bp_cd
+
+GROUP BY bttemp_bp_ref_to_bp_cd.bp_ref
+	,  vw_add_ref_durn.bp_cd
+	,  vw_add_ref_durn.add_cd
+	,  bttemp_bp_ref_to_bp_cd.srch_nam
+ 
+
+
+/*****************************************/
+
+
+SELECT 	bttemp_add_cd_from_bp_cd.bp_ref
+	,  bttemp_add_cd_from_bp_cd.bp_cd
+	,  bttemp_add_cd_from_bp_cd.srch_nam
+	,  vw_add_address.ad_li_1
+	,  vw_add_address.ad_li_2
+	,  vw_add_address.ad_li_3
+	,  vw_add_address.ad_li_4
+	,  vw_add_address.ad_li_5
+	,  vw_add_address.ad_li_6
+	,  vw_add_address.ad_li_7
+	,  vw_add_address.ad_li_8
+	,  vw_add_address.ad_li_9
+	,  vw_add_address.ad_li_10
+	,  vw_add_address.pst_cd
+	,  0 as tel_num
+	,
+--vw_add_address.tel_num, 
+--vw_add_address.fax_num
+	0 as fax_num
+	,  vw_add_address.email 
+
+INTO 	[bttemp_address_for_add_cd]
+
+FROM 	vw_add_address 
+INNER JOIN 	bttemp_add_cd_from_bp_cd ON vw_add_address.add_cd = bttemp_add_cd_from_bp_cd.add_cd
+
+GROUP BY bttemp_add_cd_from_bp_cd.bp_ref
+	,  bttemp_add_cd_from_bp_cd.bp_cd
+	,  bttemp_add_cd_from_bp_cd.srch_nam
+	,  vw_add_address.ad_li_1
+	,  vw_add_address.ad_li_2
+	,  vw_add_address.ad_li_3
+	,  vw_add_address.ad_li_4
+	,  vw_add_address.ad_li_5
+	,  vw_add_address.ad_li_6
+	,  vw_add_address.ad_li_7
+	,  vw_add_address.ad_li_8
+	,  vw_add_address.ad_li_9
+	,  vw_add_address.ad_li_10
+	,  vw_add_address.pst_cd
+	,
+--vw_add_address.tel_num, 
+--vw_add_address.fax_num, 
+	vw_add_address.email
+
+/*****************************************/
+/* ? Sub query ? */
+ 
+SELECT	cc.wk_ref
+	,[bttemp_address_for_add_cd].srch_nam as new_debt_couns
+
+INTO 	bttemp_debt_counsx
+
+FROM 	[bttemp_address_for_add_cd] 
+
+INNER JOIN (vw_cms_case cc
+INNER JOIN  bttemp_debt_counselor_bpcd_wkseq ON cc.wk_seq =  bttemp_debt_counselor_bpcd_wkseq.wk_seq) 
+ON [bttemp_address_for_add_cd].bp_cd =  bttemp_debt_counselor_bpcd_wkseq.bp_cd
+
+
+/*****************************************/
+ 
+
+SELECT DISTINCT 
+	wk_ref
+	,  new_debt_couns
+
+INTO bttemp_debt_counsy
+
+FROM bttemp_debt_counsx
+
+/*****************************************/
+
+ 
+SELECT	wk_ref 
+
+INTO 	bttemp_dc_dups 
+
+FROM 	bttemp_debt_counsy 
+
+GROUP BY wk_ref 
+
+HAVING 	count(*) >1
+
+/*****************************************/
+
+
+DELETE
+
+FROM 	bttemp_debt_counsy 
+
+WHERE 	wk_ref IN (SELECT wk_ref FROM bttemp_dc_dups)
+ 
+/*****************************************/
+
+
+CREATE INDEX temp_debt_counsy
+   ON bttemp_debt_counsy (wk_ref)
+GO
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+
+/*****************************************/
+
+
+create  procedure sp_MakeRelatedAssetTempTable
+as
+ 
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+ 
+IF OBJECT_ID('bttemp_ass_ref') IS NOT NULL
+    drop table bttemp_ass_ref
+ 
+/*****************************************/
+
+
+SELECT 	wk_ref
+	,  ad_cd 
+
+INTO 	bttemp_ass_ref 
+
+FROM 	vw_cms_ass_bp bp 
+
+JOIN 	vw_cms_case c 	ON c.wk_seq=bp.wk_seq
+JOIN 	vw_led_acc 	ON ad_cd=bp_cd
+AND ass_cd='RELA'
+AND seq_num=1
+
+GROUP BY wk_ref
+	,  ad_cd
+ 
+/*****************************************/
+
+
+CREATE INDEX temp_ass_ref
+   ON bttemp_ass_ref (wk_ref)
+GO
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+ 
+ /*****************************************/
+
+ 
+ 
+
+create procedure sp_MakeOriginalBalanceTempTable 
+ 
+as
+ 
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+ 
+IF OBJECT_ID('bttemp_org_bal') IS NOT NULL
+    drop table bttemp_org_bal
+
+
+/*****************************************/
+
+ 
+SELECT 	c.wk_ref
+	,  val37 as original_debt_value
+
+INTO 	bttemp_org_bal
+
+FROM 	vw_cms_values v
+
+JOIN 	replicated_live.dbo.cms_case c ON c.wk_ref=v.wk_ref
+
+WHERE 	c.sys='LED'
+AND 	v.sys='LED'
+AND 	block_num=2
+AND 	c.wk_ref not in ('77777', '88888', '99999')
+AND 	NOT ((bus_cat = 'BKON') and (que=5000))
+AND 	sub_seq=1
+
+
+/*****************************************/
+
+
+ALTER TABLE [dbo].[bttemp_org_bal] WITH NOCHECK ADD 
+ CONSTRAINT [PKtob] PRIMARY KEY  CLUSTERED 
+ (
+  [wk_ref]
+ )  ON [PRIMARY]
+GO
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+ 
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+  
+
+/*****************************************/ 
+ 
+
+create  procedure sp_MakeBookondateTempTable
+as
+ 
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+ 
+IF OBJECT_ID('bttemp_bookon_date') IS NOT NULL
+    drop table bttemp_bookon_date 
+ 
+SELECT 
+	wk_ref
+	,  dat9
+	,  dat26
+	,  dat44 
+
+INTO 	bttemp_bookon_date
+
+FROM 	vw_cms_dates_block1_part d 
+ 
+
+/*****************************************/ 
+ 
+ 
+ALTER TABLE [dbo].[bttemp_bookon_date] WITH NOCHECK ADD 
+ CONSTRAINT [PKtemp_bookon_date] PRIMARY KEY  CLUSTERED 
+ (
+  [wk_ref]
+ )  ON [PRIMARY]
+GO
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+ 
+ 
+
+create  procedure sp_MakeStrgStuffTempTable
+ 
+as
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+ 
+IF OBJECT_ID('bttemp_temp_bt_c') IS NOT NULL
+    drop table bttemp_temp_bt_c
+ 
+IF OBJECT_ID('bttemp_temp_counselor') IS NOT NULL
+    drop table bttemp_temp_counselor 
+ 
+IF OBJECT_ID('bttemp_temp_couns2') IS NOT NULL
+    drop table bttemp_temp_couns2
+ 
+select wk_ref,convert(varchar(50),null) as debt_c into 
+bttemp_temp_bt_c from vw_cms_case
+ 
+ALTER TABLE [dbo].[bttemp_temp_bt_c] WITH NOCHECK ADD 
+ CONSTRAINT [PKbttemp_temp_bt_c] PRIMARY KEY  CLUSTERED 
+ (
+  [wk_ref]
+ )  ON [PRIMARY] 
+ 
+/*****************************************/ 
+
+ 
+SELECT 	wk_ref
+	,  strg10
+	,  strg18
+	,  strg7 as package_id
+	,  strg14 as vendor_full_name 
+
+INTO	bttemp_temp_counselor 
+
+FROM 	vw_cms_strings
+WHERE	block_num=2 AND sys='LED' 
+
+/*****************************************/ 
+ 
+ALTER TABLE [dbo].[bttemp_temp_counselor] WITH NOCHECK ADD 
+ CONSTRAINT [PKbttemp_temp_counselor] PRIMARY KEY  CLUSTERED 
+ (
+  [wk_ref]
+ )  ON [PRIMARY] 
+ 
+/*****************************************/ 
+
+
+SELECT wk_ref
+	,  nam
+
+INTO 	bttemp_temp_couns2
+
+FROM 	vw_cms_ass_bp bp 
+
+JOIN 	vw_add_address aa 	ON aa.add_cd=bp.bp_cd
+LEFT JOIN vw_add_bp_ind i 	ON i.bp_cd=bp.bp_cd
+LEFT JOIN vw_cms_case cc 	ON cc.wk_seq=bp.wk_seq
+
+WHERE ass_cd='DCO'
+ 
+GROUP BY wk_ref
+	,  nam
+
+/*****************************************/ 
+
+ 
+CREATE INDEX temp_debt_couns2
+   ON bttemp_temp_couns2 (wk_ref)
+ 
+update bttemp_temp_bt_c
+set debt_c=nam from bttemp_temp_bt_c
+join bttemp_temp_couns2 on bttemp_temp_couns2.wk_ref=bttemp_temp_bt_c.wk_ref
+ 
+
+update bttemp_temp_bt_c
+set debt_c=strg10 from bttemp_temp_bt_c bt 
+join bttemp_temp_counselor tc on bt.wk_ref=tc.wk_ref
+where debt_c is null
+and strg10 is not null
+GO
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+ 
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+ 
+ 
+
+create  procedure sp_MakeOccupationTempTable
+ 
+as
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+IF OBJECT_ID('bttemp_occup') IS NOT NULL
+    drop table bttemp_occup
+ 
+IF OBJECT_ID('bttmp_bpr') IS NOT NULL
+    drop table bttmp_bpr
+ 
+
+select acc_cd,narr 
+into bttemp_occup
+from 
+vw_led_acc la 
+join vw_add_bp v on v.bp_ref=la.cus_ref
+join vw_add_bp_ind bi on bi.bp_cd=v.bp_cd
+join vw_tcs_code_nar on occ_cd=tcs_code
+where lang='USA' and tcs_typ='BPOCC'
+ 
+
+CREATE INDEX temp_occup
+   ON bttemp_occup (acc_cd)
+ 
+select acc_ref,b.bp_ref
+into bttmp_bpr 
+from vw_led_acc l 
+join vw_add_bp b on l.cus_ref=b.bp_ref
+ 
+CREATE INDEX temp_bpr
+   ON bttmp_bpr (acc_ref)
+GO
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+ 
+ 
+create procedure sp_MakeDOBAndStuffTempTable
+as
+ 
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+IF OBJECT_ID('bttemp_dobby') IS NOT NULL
+    drop table bttemp_dobby
+ 
+IF OBJECT_ID('bttemp_scumbag') IS NOT NULL
+    drop table bttemp_scumbag
+ 
+IF OBJECT_ID('bttemp_scumbag2') IS NOT NULL
+    drop table bttemp_scumbag2
+ 
+IF OBJECT_ID('bttemp_cut_ard') IS NOT NULL
+    drop table bttemp_cut_ard
+ 
+IF OBJECT_ID('bttemp_phone_nos') IS NOT NULL
+    drop table bttemp_phone_nos
+ 
+select acc_cd,dob
+into bttemp_dobby
+FROM vw_led_acc la
+join vw_add_bp abp on abp.bp_ref=la.cus_ref
+join vw_add_bp_ind bi on bi.bp_cd=abp.bp_cd
+where dob is not null
+ 
+
+ALTER TABLE [dbo].[bttemp_dobby] WITH NOCHECK ADD 
+ CONSTRAINT [PK_t_dobby] PRIMARY KEY  NONCLUSTERED 
+ (
+  [acc_cd]
+ )  ON [PRIMARY] 
+ 
+select wk_ref,val22 as [def_amt] into bttemp_scumbag 
+from vw_cms_values d
+where sys='LED' and block_num=2
+and val22 is not null
+ 
+ 
+ 
+ALTER TABLE bttemp_scumbag WITH NOCHECK ADD 
+ CONSTRAINT [PK_wk_ref_scum] PRIMARY KEY  NONCLUSTERED 
+ ( [wk_ref]
+ )  ON [PRIMARY] 
+ 
+select wk_ref,val25 as [SC1] into bttemp_scumbag2 
+from vw_cms_values d
+where sys='LED' and block_num=3
+and val25 is not null
+ 
+
+ALTER TABLE bttemp_scumbag2 WITH NOCHECK ADD 
+ CONSTRAINT [PK_wk_ref_scum2] PRIMARY KEY  NONCLUSTERED 
+ ( [wk_ref]
+ )  ON [PRIMARY] 
+ 
+select * into bttemp_cut_ard from vw_add_ref_durn ard
+where (ard.add_typ = 'MAIN') AND (ard.valid_to IS NULL) 
+and valid_fr is not null
+ 
+
+ALTER TABLE bttemp_cut_ard WITH NOCHECK ADD 
+ CONSTRAINT [PK_ard] PRIMARY KEY  NONCLUSTERED 
+ (  
+ bp_cd
+ )  ON [PRIMARY] 
+ 
+ 
+ 
+
+select wk_ref,
+convert(varchar(40),null) as vphone1, 
+convert(varchar(40),null) as vphone2,
+convert(varchar(40),null) as vphone3
+into bttemp_phone_nos
+from vw_cms_case where sys='LED' and sub_seq=1
+ 
+
+--main phone number
+select wk_ref, tel_num, max(seq) as seq into ##temp_phone_main 
+from vw_kk_phone_numbers where tel_type='ADDTEL_MAIN'
+group by wk_ref,tel_num
+ 
+select wk_ref,tel_num into ##temp_phone_main2 from ##temp_phone_main t
+where seq = (select max(seq) from ##temp_phone_main k where t.wk_ref=k.wk_ref)
+ 
+ALTER TABLE ##temp_phone_main2 WITH NOCHECK ADD 
+ CONSTRAINT [PK_temp_phone_main] PRIMARY KEY  NONCLUSTERED 
+ (  
+ wk_ref
+ )  ON [PRIMARY]
+ 
+--business phone number
+select wk_ref, tel_num, max(seq) as seq into ##temp_phone_bus
+from vw_kk_phone_numbers where tel_type='BUSINESS'
+group by wk_ref,tel_num
+ 
+select wk_ref,tel_num into ##temp_phone_bus2 from ##temp_phone_bus t
+where seq = (select max(seq) from ##temp_phone_bus k where t.wk_ref=k.wk_ref)
+ 
+ALTER TABLE ##temp_phone_bus2 WITH NOCHECK ADD 
+ CONSTRAINT [PK_temp_phone_bus] PRIMARY KEY  NONCLUSTERED 
+ (  
+ wk_ref
+ )  ON [PRIMARY]
+ 
+--mobile phone number
+select wk_ref, tel_num, max(seq) as seq into ##temp_phone_mob
+from vw_kk_phone_numbers where tel_type='MOBILE'
+group by wk_ref,tel_num
+ 
+select wk_ref,tel_num into ##temp_phone_mob2 from ##temp_phone_mob t
+where seq = (select max(seq) from ##temp_phone_mob k where t.wk_ref=k.wk_ref)
+ 
+ALTER TABLE ##temp_phone_mob2 WITH NOCHECK ADD 
+ CONSTRAINT [PK_temp_phone_mob] PRIMARY KEY  NONCLUSTERED 
+ (  
+ wk_ref
+ )  ON [PRIMARY]
+ 
+
+update bttemp_phone_nos
+set vphone1=tel_num from ##temp_phone_main2 k
+join bttemp_phone_nos bt on k.wk_ref=bt.wk_ref
+ 
+update bttemp_phone_nos
+set vphone2=tel_num from ##temp_phone_bus2 k
+join bttemp_phone_nos bt on k.wk_ref=bt.wk_ref
+ 
+update bttemp_phone_nos
+set vphone3=tel_num from ##temp_phone_mob2 k
+join bttemp_phone_nos bt on k.wk_ref=bt.wk_ref
+ 
+ 
+ 
+drop table ##temp_phone_main2
+drop table ##temp_phone_main
+drop table ##temp_phone_bus
+drop table ##temp_phone_bus2
+drop table ##temp_phone_mob
+drop table ##temp_phone_mob2
+GO
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+create procedure sp_BTBigSelectInto_New
+as
+ 
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+ 
+IF OBJECT_ID('bttemp_debtor') IS NOT NULL
+    drop table bttemp_debtor
+ 
+select
+dbtr.[debt-code] as wk_ref,
+dbtr.[dr-title] as title,
+dbtr.[dr-inits] as forename,
+dbtr.[dr-name] as surname,
+dbtr.[dr-address@1] as vadd1,
+dbtr.[dr-address@2] as vadd2,
+dbtr.[dr-address@3] as vadd3,
+dbtr.[dr-address@4] as vadd4,
+dbtr.[dr-postcode] as vpostcode
+into bttemp_debtor
+from vw_debtor_ci dbtr
+where [dr-rectype]='D'
+ 
+
+CREATE  nonCLUSTERED  INDEX [debtor_di] ON [dbo].[bttemp_debtor]([wk_ref]) ON [PRIMARY]
+ 
+
+IF OBJECT_ID('tblbigtable_new') IS NOT NULL
+    drop table tblbigtable_new
+select cc.wk_ref,
+p.vphone1,
+p.vphone2, 
+p.vphone3,
+cc.category,
+strategy,
+que,
+ars_bal as current_balance,
+sub_ref as add_ref,
+da.vend_prod as [product_type],
+tdc.package_id as package_id,
+la.pdtodate as paid_to_date,
+lstpaydat as last_payment_date,
+convert(money,null) as last_payment_amount,
+convert(datetime,null) as next_payment_date,
+vd.[Last Payment Date] as vendor_last_payment_date,
+dat44 as statute_barred_date,
+convert(varchar(10),null) as last_trn_cd,
+convert(int,null) as latest_plan_number,
+title,
+forename,
+surname,
+vadd1,
+vadd2,
+vadd3,
+vadd4,
+vpostcode,
+vd.[CO Date] as [charge_off_date],
+dat26 as default_date,
+tsb.def_amt as default_amount,
+bpp.package_id as pseudo_package_id,
+tbtc.new_debt_couns as debt_couns,
+ 
+--Added cr 218 M Peters 08-10-2003
+tdc.strg18 as original_card_number,
+--***
+ 
+tmpdob.dob as dob,
+wk_seq as [case_wk_seq],
+tbd.dat9 as bookon_date,
+--convert(datetime,null) as bookon_date,
+usr_cd as owner,
+tmpbp.bp_ref,
+tar.ad_cd as ass_ref,
+tir.interest_last_applied as date_interest_last_applied,
+tir.interest_applied,
+tir.daily_interest_amount,
+tir.interest_accrued,
+tsb2.SC1 as [SC1 Score],
+toc.narr as occupation,
+convert(varchar(30),null) as payment_method,
+ob.original_debt_value, 
+ 
+--Added cr 305 F Rush 27-02-2004
+cur as currency,
+--***
+ 
+--Added CR758 M Ottaway 06-09-2005
+tdc.vendor_full_name,
+--***
+ 
+--Added CR1084 M Ottaway 05-07-2006
+p.vphone1 as vphone1_raw,
+p.vphone2 as vphone2_raw,
+p.vphone3 as vphone3_raw
+ 
+into tblbigtable_new
+from  vw_cms_case cc
+left outer join bttemp_phone_nos p on p.wk_ref=cc.wk_ref 
+left outer join vw_led_acc la on la.acc_cd=cc.wk_ref
+left outer join vw_dl_acc da on da.acc_cd=cc.wk_ref
+left outer join bttemp_temp_counselor tdc on tdc.wk_ref=cc.wk_ref
+left outer join vw_tblvendor_data vd on vd.[Debt-code]=cc.wk_ref
+--left outer join bttemp_statbarreddate sbd on sbd.wk_ref=cc.wk_ref
+left outer join bttemp_debtor dbtr on dbtr.wk_ref=cc.wk_ref
+left outer join bttemp_scumbag tsb on tsb.wk_ref=cc.wk_ref
+left outer join vw_barclays_pseudo_package_ids bpp on bpp.wk_ref=cc.wk_ref 
+left outer join bttemp_debt_counsy tbtc on tbtc.wk_ref=cc.wk_ref
+--left outer join bttemp_default_date tdd on tdd.wk_ref=cc.wk_ref
+left outer join bttemp_dobby tmpdob on tmpdob.acc_cd=cc.wk_ref
+left outer join bttemp_bookon_date tbd on tbd.wk_ref=cc.wk_ref
+left outer join bttmp_bpr tmpbp on cc.wk_ref=tmpbp.acc_ref
+left outer join bttemp_ass_ref tar on tar.wk_ref=cc.wk_ref
+left outer join bttemp_ir_stuff tir on tir.acc_cd=cc.wk_ref
+left outer join bttemp_scumbag2 tsb2 on tsb2.wk_ref=cc.wk_ref
+left outer join bttemp_occup toc on toc.acc_cd=cc.wk_ref
+left outer join bttemp_org_bal ob on ob.wk_ref=cc.wk_ref
+ 
+
+ALTER TABLE [dbo].[tblbigtable_new] ADD 
+ CONSTRAINT [PK_tblbigtable_new] PRIMARY KEY  CLUSTERED 
+ (
+  [wk_ref]
+ )  ON [PRIMARY]
+GO
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+
+create  procedure sp_PseudoPackageIDUpdate
+as
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+update tblbigtable_new
+set pseudo_package_id=package_id where pseudo_package_id is null
+GO
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+
+create  procedure sp_PaymentMethodUpdate
+as
+ 
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+ 
+
+IF OBJECT_ID('bttemp_plan_num') IS NOT NULL
+    drop table bttemp_plan_num
+ 
+
+select src_wk_ref,max(pln_num) as pln_num into bttemp_plan_num 
+from vw_plans_filtered
+group by src_wk_ref
+order by src_wk_ref
+ 
+update tblbigtable_new
+set payment_method=long_nar from tblbigtable_new t
+join bttemp_plan_num p on wk_ref=src_wk_ref
+join vw_cms_rpln_det d on d.pln_num=p.pln_num
+join vw_tcs_trnnar on trn_cd=pay_mth
+where lang='USA'
+GO
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+
+create  procedure sp_PlanInfoUpdate
+ 
+as
+ 
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+ 
+IF OBJECT_ID('bttemp_seq_num') IS NOT NULL
+    drop table bttemp_seq_num
+ 
+select acc_cd,max(seq) as max_seq into 
+BTtemp_seq_num from vw_led_tran group by acc_cd
+ 
+CREATE INDEX temp_acc_cd2
+   ON bttemp_seq_num (acc_cd)
+ 
+
+IF OBJECT_ID('bttemp_trn_cd') IS NOT NULL
+    drop table bttemp_trn_cd
+ 
+select distinct 
+wk_ref,
+trn_cd,amt  into bttemp_trn_cd from tblbigtable_new bt 
+join vw_led_tran on bt.wk_ref=acc_cd 
+and last_payment_date=dat 
+join bttemp_seq_num t on t.acc_cd=wk_ref and max_seq=seq
+where last_payment_date is not null 
+and left(trn_cd,1)='P' 
+ 
+CREATE INDEX temp_acc_cd3
+   ON bttemp_trn_cd (wk_ref)
+ 
+update tblbigtable_new
+set last_trn_cd=bttemp_trn_cd.trn_cd from 
+tblbigtable_new join bttemp_trn_cd on 
+tblbigtable_new.wk_ref=bttemp_trn_cd.wk_ref
+ 
+
+IF OBJECT_ID('bttemp_plan_stuff') IS NOT NULL
+    drop table bttemp_plan_stuff
+ 
+ 
+ 
+select src_wk_ref,act_rev,cp.pln_num,
+min(dat) as next_payment_date 
+into bttemp_plan_stuff 
+from vw_cms_pln cp 
+join vw_cms_pln_chk cpk on cpk.pln_num = cp.pln_num and 
+cp.act_rev=cpk.rev_no where 
+dat>datename(d,getdate())+' '+datename(m,getdate())+' '+datename(yy,getdate()) 
+and pln_stat='B' and src_sys='LED'  
+group by src_wk_ref,act_rev,cp.pln_num
+ 
+CREATE INDEX temp_wk_ref2
+   ON bttemp_plan_stuff (src_wk_ref)
+ 
+update tblbigtable_new
+set latest_plan_number=pln_num,
+next_payment_date=t.next_payment_date 
+from bttemp_plan_stuff t join tblbigtable_new on src_wk_ref=wk_ref
+GO
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+SET QUOTED_IDENTIFIER ON 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+create  procedure sp_LastPayAmountUpdate
+ 
+as
+ 
+
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+ 
+IF OBJECT_ID('bttemp_rv') IS NOT NULL
+    drop table bttemp_rv
+IF OBJECT_ID('bttemp_rv2') IS NOT NULL
+    drop table bttemp_rv2
+ 
+-- M Peters 200406 - correct OLE DB connection error to DATA
+SELECT * 
+INTO #tblCITranCodes
+FROM tblCITranCodes
+ 
+
+--Get the most recent payment record by selecting the most up-to-date seq number from each account.  Join to
+--the tran codes we are interested (ignor interest, op bal etc.)
+SELECT  acc_cd, 
+ max(seq) as max_seq,
+ convert(money,null) as amount 
+INTO bttemp_rv
+FROM vw_led_tran ltran
+--INNER JOIN data_warehouse.dbo.tblCITranCodes CITC 
+INNER JOIN #tblCITranCodes CITC 
+ ON (CITC.trn_cd + ISNULL(CITC.trn_ref,'')= ltran.trn_cd + ISNULL(ltran.trn_ref,'') 
+ AND CITC.is_cash_flag<>0)
+ 
+GROUP BY acc_cd
+ 
+--cluster index for performance
+ALTER TABLE [dbo].[bttemp_rv] ADD 
+ CONSTRAINT [PK_bttemp_rv_pk] PRIMARY KEY  CLUSTERED 
+ (
+  [acc_cd]
+ )  ON [PRIMARY]
+ 
+--From the most recent seq record we can get the date and the amount
+SELECT  b.acc_cd, 
+ lt.book_dat,
+ 0-lt.amt as [amount]
+INTO bttemp_rv2
+FROM vw_led_tran lt
+INNER JOIN bttemp_rv b
+ON lt.acc_cd=b.acc_cd
+AND lt.seq=b.max_seq
+ 
+
+ALTER TABLE [dbo].[bttemp_rv2] ADD 
+ CONSTRAINT [PK_bttemp_rv2_pk] PRIMARY KEY  CLUSTERED 
+ (
+  [acc_cd]
+ )  ON [PRIMARY]
+ 
+--update bigtable with the new values
+UPDATE tblbigtable_new
+SET  last_payment_amount=b2.amount --,
+-- last_payment_date=b2.book_dat
+FROM bttemp_rv2 b2
+INNER JOIN tblbigtable_new btn 
+ON wk_ref=[acc_cd]
+ 
+--drop table bttemp_rv
+--drop table bttemp_rv2
+ 
+GO
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+create procedure sp_PhoneNumbersUpdate
+as
+SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED
+update tblbigtable_new set vphone1=replace(vphone1,' ',''),vphone2=replace(vphone2,' ',''),vphone3=replace(vphone3,' ','')
+ 
+update tblbigtable_new set vphone1=left(vphone1,13) where left(vphone1,2)<>'00'
+update tblbigtable_new set vphone2=left(vphone2,13) where left(vphone2,2)<>'00'
+update tblbigtable_new set vphone3=left(vphone3,13) where left(vphone3,2)<>'00'
+ 
+update tblbigtable_new
+set vphone1=null where ascii(left(vphone1,1))<>48 or len(vphone1)=0 or left(vphone1,3)='000'
+ 
+update tblbigtable_new
+set vphone2=null where ascii(left(vphone2,1))<>48 or len(vphone2)=0 or left(vphone2,3)='000'
+ 
+update tblbigtable_new
+set vphone3=null where ascii(left(vphone3,1))<>48 or len(vphone3)=0 or left(vphone3,3)='000'
+ 
+update tblbigtable_new
+set vphone1=null where left(vphone1,5) not in ('01298','01460') and len(vphone1)<11 
+ 
+update tblbigtable_new
+set vphone2=null where left(vphone2,5) not in ('01298','01460') and len(vphone2)<11 
+ 
+update tblbigtable_new
+set vphone3=null where left(vphone3,5) not in ('01298','01460') and len(vphone3)<11
+ 
+update tblbigtable_new
+set vphone1=null where isnumeric(vphone1)<>1
+update tblbigtable_new
+set vphone2=null where isnumeric(vphone2)<>1
+update tblbigtable_new
+set vphone3=null where isnumeric(vphone3)<>1
+GO
+SET QUOTED_IDENTIFIER OFF 
+GO
+SET ANSI_NULLS ON 
+GO
+ 
+ 
+ 
+ 
+

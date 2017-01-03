@@ -1,0 +1,107 @@
+
+
+
+
+
+* JAN TO APR 2004.xls ;
+PROC IMPORT OUT= NR001.SAS_002_1 
+            DATAFILE= "C:\Documents and Settings\HTimms\My Documents\Risk\NR001\Data\Excel\SAS Prep\SAS_002.xls" 
+            DBMS=EXCEL REPLACE;
+     SHEET="Main$"; 
+     GETNAMES=YES;
+     MIXED=NO;
+     SCANTEXT=YES;
+     USEDATE=YES;
+     SCANTIME=YES;
+RUN;
+
+PROC IMPORT OUT= NR001.SAS_002_2 
+            DATAFILE= "C:\Documents and Settings\HTimms\My Documents\Risk\NR001\Data\Excel\SAS Prep\SAS_002.xls" 
+            DBMS=EXCEL REPLACE;
+     SHEET="Main_1$"; 
+     GETNAMES=YES;
+     MIXED=NO;
+     SCANTEXT=YES;
+     USEDATE=YES;
+     SCANTIME=YES;
+RUN;
+PROC IMPORT OUT= NR001.SAS_002_3 
+            DATAFILE= "C:\Documents and Settings\HTimms\My Documents\Risk\NR001\Data\Excel\SAS Prep\SAS_002.xls" 
+            DBMS=EXCEL REPLACE;
+     SHEET="Main_2$"; 
+     GETNAMES=YES;
+     MIXED=NO;
+     SCANTEXT=YES;
+     USEDATE=YES;
+     SCANTIME=YES;
+RUN;
+
+
+data NR001.NonRetail_Live ;
+	Set NR001.NonRetail_Live ;
+	attrib Outcome_01 format = date9. informat = date9.;
+	attrib Outcome_02 format = date9. informat = date9.;
+	attrib Outcome_03 format = date9. informat = date9.;
+	attrib Outcome_04 format = date9. informat = date9.;
+	attrib Outcome_05 format = date9. informat = date9.;
+	attrib Outcome_06 format = date9. informat = date9.;
+	attrib Outcome_07 format = date9. informat = date9.;
+	attrib Outcome_08 format = date9. informat = date9.;
+	attrib Outcome_09 format = date9. informat = date9.;
+	attrib Outcome_10 format = date9. informat = date9.;
+	attrib Outcome_11 format = date9. informat = date9.;
+	attrib Outcome_12 format = date9. informat = date9.;
+
+	Outcome_01 = INTNX('month',Parameter_Date,2);
+	Outcome_02 = INTNX('month',Parameter_Date,3);
+	Outcome_03 = INTNX('month',Parameter_Date,4);
+	Outcome_04 = INTNX('month',Parameter_Date,5);
+	Outcome_05 = INTNX('month',Parameter_Date,6);
+	Outcome_06 = INTNX('month',Parameter_Date,7);
+	Outcome_07 = INTNX('month',Parameter_Date,8);
+	Outcome_08 = INTNX('month',Parameter_Date,9);
+	Outcome_09 = INTNX('month',Parameter_Date,10);
+	Outcome_10 = INTNX('month',Parameter_Date,11);
+	Outcome_11 = INTNX('month',Parameter_Date,12);
+	Outcome_12 = INTNX('month',Parameter_Date,13);
+
+Run;
+
+
+proc sql;
+	Create Table NR001.Bads as
+	Select  base.crn
+			,  base.Parameter_Date
+			,  Sum	(Case 
+				When (Outcome_12 >= In_Date) and (Parameter_Date < Out_Date )
+				Then 1
+				Else 0 End) as GoodBad_12
+			, INTCK('month',Outcome_12 ,In_Date  ) as Test
+			
+	From	NR001.NonRetail_Live as base
+			,  NR001.Arrears as arrears
+
+	Where 	base.crn = arrears.Co__Registration_No 
+	And		arrears.Status_Approval = 'A'
+
+	Group By  base.crn , base.Parameter_Date;
+
+quit;
+
+
+
+proc sql;
+	Create Table NR001.Bads as
+	Select  UniqueKey
+
+			, Sum(Case When (INTCK('month',Parameter_Date ,Out_Date  ) >=0 )And (INTCK('month',Parameter_Date ,In_Date  )<12) then 1 else 0 end) as Bad
+
+	From	NR001.NonRetail_Live as base
+			,  NR001.Arrears as arrears
+
+	Where 	base.crn = arrears.Co__Registration_No 
+	And		arrears.Status_Approval = 'A'
+
+	Group By
+			UniqueKey ;
+quit;

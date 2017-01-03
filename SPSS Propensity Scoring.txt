@@ -1,0 +1,151 @@
+/* http://www.unc.edu/~painter/SPSSsyntax/propen.txt */
+
+/* Core code written by Raynald Levesque and */
+/* Adapted for use with propensity matching by John Painter (Feb 2004)*/
+/* Program developed and tested with SPSS 11.5 */
+/* Procedure will find best match for each treatment case from the control cases, */
+/* control case is then removed and not reconsidered for subsequent matches */
+/* Order of cases is random */
+/* This code is self contained in that a data file named 'population' is created for illustrative
+/* purposes only.
+/* For any analysis the number of Treatment cases must be specified manually */
+/* and the 'Regression Modelsle' add-on module must be available  */
+
+/* Change file path here and only here */
+
+DEFINE !pathd() 'c:\temp\' !ENDDEFINE.
+
+* This arrangement gives a good set of data .
+* Generate sample data for illustration purposes.
+SET SEED=01251701.
+NEW FILE.
+INPUT PROGRAM. 
+LOOP id=1 TO 300.                                  /* generates 300 records              */
++ COMPUTE sex=1 + (UNIFORM(1)>.5).                 /* generates 27 treatment cases       */
++ COMPUTE age=TRUNC(50+UNIFORM(10)). 
++ COMPUTE treatm=UNIFORM(1)>.90.                   /* 1=treatment, 0=potential control   */
++ COMPUTE abc=UNIFORM(1)>.5.
++ COMPUTE def=UNIFORM(1)>.4.
++ COMPUTE hij=UNIFORM(1)>.3.
++ END CASE.
+END LOOP.
+END FILE.
+
+END INPUT PROGRAM.
+******************** .
+* Perform logistical regression to compute propensity score (n treatment cases = 27 for original example).
+******************* .
+LOGISTIC REGRESSION VAR=treatm
+  /METHOD=ENTER sex age abc def hij
+  /CONTRAST (sex)=Indicator
+  /SAVE PRED
+  /CRITERIA PIN(.05) POUT(.10) ITERATE(20) CUT(.5) .
+RENAME VARIABLES (PRE_1=propen) .
+
+
+*********************.
+* Note number of Treatment cases and place number after MACRO CALL near end ofthis program .
+********************* .
+FREQUENCIES
+  VARIABLES=treatm
+  /ORDER=  ANALYSIS .
+
+
+SAVE OUTFILE=!pathd + "population.sav" .
+
+
+********************* .
+** End Preparation .
+********************* .
+GET FILE= !pathd + "population.sav".
+COMPUTE x = RV.UNIFORM(1,1000000) .
+SORT CASES BY treatm(D) propen x.
+COMPUTE idx=$CASENUM.
+SAVE OUTFILE=!pathd + "mydata.sav".
+
+* Erase the previous temporary result file, if any.
+ERASE FILE=!pathd + "results.sav".
+COMPUTE key=1.
+SELECT IF (1=0).
+* Create an empty data file to receive results.
+SAVE OUTFILE=!pathd + "results.sav".
+exec.
+
+********************************************.
+* Define a macro which will do the job.
+********************************************.
+
+SET MPRINT=no.
+*////////////////////////////////.
+DEFINE !match (nbtreat=!TOKENS(1))
+!DO !cnt=1 !TO !nbtreat
+
+GET FILE=!pathd + "mydata.sav".
+SELECT IF idx=!cnt OR treatm=0.
+* Select one treatment case and all control .
+DO IF $CASENUM=1.
+COMPUTE #target=propen.
+ELSE.
+COMPUTE delta=propen-#target.
+END IF.
+EXECUTE.
+SELECT IF ~MISSING(delta).
+IF (delta<0) delta=-delta.
+
+SORT CASES BY delta.
+SELECT IF $CASENUM=1.
+COMPUTE key=!cnt .
+SAVE OUTFILE=!pathd + "used.sav".
+ADD FILES FILE=* 
+	/FILE=!pathd + "results.sav".
+SAVE OUTFILE=!pathd + "results.sav".
+
+************************************************ Match back to original and drop case  from original .
+GET FILE= !pathd + "mydata.sav".
+SORT CASES BY idx .
+MATCH FILES 
+ /FILE=*
+ /IN=mydata
+ /FILE=!pathd + "used.sav"
+ /IN=used
+ /BY idx .
+SELECT IF (used = 0).
+SAVE OUTFILE=!pathd + "mydata.sav"
+ / DROP = used mydata key delta.
+EXECUTE.
+!DOEND
+!ENDDEFINE.
+*////////////////////////////////.
+
+SET MPRINT=yes.
+
+**************************.
+* MACRO CALL (first insert the number of cases after nbtreat below) .
+**************************.
+!match nbtreat=27.
+
+* Sort results file to allow matching.
+
+GET FILE=!pathd + "results.sav".
+SORT CASES BY key.
+SAVE OUTFILE=!pathd + "results.sav".
+
+******************.
+* Match each treatment cases with the most similar non treatment case.
+* To include additional variables from original file list them on the RENAME subcommand below .
+******************.
+
+GET FILE=!pathd + "mydata.sav".
+MATCH FILES /FILE=*
+ /FILE=!pathd + "results.sav"
+ /RENAME (idx = d0) (id=id2) (propen=propen2)
+  (treatm=treatm2) (key=idx)
+ /BY idx
+ /DROP= d0.
+FORMATS delta propen propen2  (F10.8).
+SAVE OUTFILE=!pathd + "mydata and results.sav".
+EXECUTE.
+
+* That's it!.
+
+

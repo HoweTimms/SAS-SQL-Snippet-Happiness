@@ -1,0 +1,390 @@
+'Begin Description
+'This script will export SPSS PivotTables into Excel using BIFF (Binary Interchange File Format).
+'It will also paste charts.  Each item is pasted into its own sheet.  
+'End Description
+'
+'******************************************************
+'You may wish to edit the Excel Macro (below), which 
+'re-formats the table after it is pasted into Excel
+'******************************************************
+
+Sub ExcelMacro()
+    objExcelApp.Selection.AutoFormat Format:=&HFFFFEFC6, Number:=True, _
+    	Font:=True, Alignment:=True, Border:=True, Pattern:=True, Width:=True
+    'You could tell Excel to execute a macro here.
+End Sub
+'
+'******************************************************
+'NO FURTHER CHANGES SHOULD BE NEEDED
+'******************************************************
+
+
+'used for dialog titles
+Const SCRIPT_NAME As String = "Export to Excel Workbook"
+'used for preserving and restoring Alerts, to prevent unwanted dialog boxes
+Const ALERTS_PRESERVE As Boolean = False
+Const ALERTS_RESTORE As Boolean = True
+
+Option Explicit
+'Windows API call, more control than Sax Basic Wait (seconds)
+Declare Sub Sleep Lib "kernel32" (ByVal dwMilliseconds As Long)
+
+'global variables, used by most subroutines
+Dim objExcelApp As Object
+Dim objOutput As ISpssOutputDoc
+
+'to notify user that items could not be pasted...
+Dim s_intErrorCount As Integer
+
+
+Sub Main
+    Dim strFileName As String
+	
+	On Error Resume Next
+	
+	'In SPSS 8.0 and above, we can invoke this script from a syntax file.
+	'In that case, we want to prevent alerts which would halt execution.
+	'But in SPSS 7.5, this would cause an error.  Therefore, all handling
+	'of Alerts is encapsulated in the Alerts function.  We call it here
+	'only to initialize settings.  It must be called again to restore
+	'settings before the script ends.
+	Alerts(ALERTS_PRESERVE)
+	
+	'Cancel the export if there is no output.
+	If objSpssApp.Documents.OutputDocCount > 0 Then
+	    Set objOutput = objSpssApp.GetDesignatedOutputDoc
+	Else	
+		'ErrorBox passes its arguments to MsgBox, but checks Alerts first.
+		ErrorBox "There is no SPSS output to export. " & vbCrLf & _
+			"Please run an analysis and try again.", vbExclamation, SCRIPT_NAME
+		'Always restore settings before quitting!
+	    Alerts(ALERTS_RESTORE)
+		End
+	End If
+	
+	'Get the file name where output will be saved.  
+	'In SPSS 8, the script can be invoked from a syntax file, and the name of the
+	'file passed in as the script parameter.  
+	'Otherwise, the file name is requested from the user.
+	strFileName = GetFileName()
+	
+	'The following condition could be omitted, 
+	'in which case the file will be exported but not saved.
+	If strFileName = "" Then
+		'User cancelled, OR invoked from syntax and target file could not be killed.
+		'Always restore settings before quitting!
+		Alerts(ALERTS_RESTORE)
+		End
+	End If
+	
+	'Start Excel and save a reference in the global variable objExcelApp.
+	CreateExcel
+	
+	'Here is where we actually do something!
+	ExportItems
+ 
+    'Save the file.  This would be a subroutine, if it weren't one line.
+    objExcelApp.ActiveWorkbook.SaveAs FileName:=strFileName
+    
+    'Tell the user if there were objects which could not be copied...
+    If s_intErrorCount > 0 Then
+    	'... but only if the Alerts are on.
+    	ErrorBox "Some items may not have been successfully copied and/or pasted into Excel." & vbCrLf & _
+    		"Please review your SPSS output and Excel document.", vbExclamation, SCRIPT_NAME
+    End If
+    
+	'For the last time:
+	'Always restore settings before quitting!
+    Alerts(ALERTS_RESTORE)
+End Sub
+
+
+'Finds items suitable for export.  Pastes them into Excel, and applies a formatting macro.
+Sub ExportItems()
+    Dim objItems As ISpssItems
+    Dim objItem As ISpssItem
+    Dim i As Long
+	Dim intFootnotes As Integer   
+		
+	On Error Resume Next
+    objExcelApp.Workbooks.Add
+    
+    Set objItems = objOutput.Items
+    For i = 0 To objItems.Count - 1
+        Set objItem = objItems.GetItem(i)
+        Debug.Print "Item " & i & " Type " & objItem.SPSSType & _
+        	" Visible " & objItem.Visible
+        'one or the other of the next two lines should be commented out
+        'If objItem.Visible And objItem.Selected Then	'copy selection only
+        If objItem.Visible Then							'copy all visible output
+           	Select Case objItem.SPSSType
+                Case SPSSPivot	', SPSSWarning	', SPSSNote		'omit Notes tables if commented out
+        			'PasteIntoExcel objItem, "Picture (Enhanced Metafile)"
+	                'comment out the remainder of this case if pasting as picture
+	                PasteIntoExcel objItem, "Biff"
+	                'apply an Excel Macro to format the table
+	                ExcelMacro
+                Case SPSSLog, SPSSText, SPSSTitle
+                '	PasteIntoExcel objItem, "Text"
+                Case SPSSChart, SPSSIGraph
+                    PasteIntoExcel objItem, "Picture (Enhanced Metafile)"
+                Case Else
+                    'do nothing
+            End Select
+        End If
+    Next
+    Err.Clear
+End Sub
+
+
+'Handles the details of Copy and Paste.
+'Uses an exponential back-off to deal with clipboard latency errors.
+Sub PasteIntoExcel (objItem As ISpssItem, strFormat As String)
+	Static intSheet As Integer
+	
+	On Error Resume Next
+	
+	Dim lngSleep As Long
+	lngSleep = 100	'1/10th of a second
+	
+    Clipboard ""	'.Clear
+    
+    objOutput.ClearSelection
+    objItem.Selected = True
+    
+    'Copy the item.  Loop is only in case of problems.
+    Do
+   		Sleep lngSleep
+		objOutput.Copy
+		If Err Then
+	 		'clipboard may not be available immediately after copy returns
+			'try to deal with any errors by waiting longer before trying again	
+			lngSleep = 2 * lngSleep
+		End If
+	Loop Until (Err = 0) Or (lngSleep > 2000)
+	
+	If Err Then	'something went wrong with the copy, try to inform the user
+		Clipboard ">>> Item could not be copied: Error # " & Err & vbCrLf & Err.Description
+		strFormat = "Text"
+		s_intErrorCount = s_intErrorCount + 1
+		Err.Clear
+	End If
+	
+	intSheet = intSheet + 1
+	If intSheet > objExcelApp.Sheets.Count Then
+	    objExcelApp.Sheets.Add After:=objExcelApp.ActiveSheet
+	Else
+		objExcelApp.Sheets("Sheet" & Trim$(CStr$(intSheet))).Select
+	End If
+	
+    lngSleep = 100
+    Do
+   		Sleep lngSleep
+
+	    objExcelApp.ActiveSheet.PasteSpecial Format:=strFormat, Link:=False, DisplayAsIcon:= False
+
+		If Err Then
+			Debug.Print "Paste Error: " & Err; Err.Description
+	 		'clipboard may not be available immediately after copy returns
+			'try to deal with any errors by waiting longer before trying again	
+			lngSleep = 2 * lngSleep
+		End If
+	Loop Until (Err=0) Or (lngSleep > 2000)	
+
+	If Err Then
+		s_intErrorCount = s_intErrorCount + 1
+		Err.Clear
+	End If
+	
+End Sub
+
+
+Function GetFileName() As String
+	Dim strFileName As String
+
+	'First check to see if the script was invoked from syntax,
+	'and a filename is provided as a script parameter.
+	
+	On Error Resume Next
+	'the following will cause an error in SPSS 7.5
+	strFileName = objSpssApp.ScriptParameter(0)
+	If Err Then
+		Err.Clear
+	End If
+	
+	If strFileName <> "" Then
+	    'OK to kill file since syntax user requested this
+		If Dir$(strFileName) <> "" Then 
+	    	Kill strFileName
+	    End If
+    	'may not be able to kill the file if the document is open
+	    If Err = 10101 Then
+	    	Err.Clear
+	    	'activate and close the worksheet; try again
+    		'if the document is open in Excel, try to close it
+    		CloseOpenDocument strFileName
+	    	Kill strFileName
+	    	If Err Then
+	    		'that didn't work, cancel the export
+		    	Err.Clear
+		    	strFileName = ""
+		    End If
+	    End If
+		GetFileName = strFileName
+		Exit Function
+	End If
+	
+	'If there wasn't a script parameter, get the filename from the user
+    Do
+	    'get the path and filename where the exported document will be saved
+	    '3=Confirm overwrite of existing file
+	    strFileName = GetFilePath$("Output.xls","xls",,SCRIPT_NAME, 3)
+	    If strFileName = "" Then	'user cancelled
+	    	Exit Function
+	    End If
+	    'OK to kill file since user signed off on this
+		If Dir$(strFileName) <> "" Then 
+	    	Kill strFileName
+	    End If
+	    'may not be able to kill the file if the document is open
+	    If Err = 10101 Then
+	    	ErrorBox "The file """ & strFileName & _
+	    		""" is currently open in Excel, and cannot be replaced. " & _
+	    		vbCrLf & vbCrLf & _
+	    		"Please pick a different file name, " & _
+	    		"or close the file and try again.", vbExclamation, _
+	    		SCRIPT_NAME
+	    	Err.Clear
+	    	strFileName = ""
+	    ElseIf Err Then
+	    	'don't know how to deal with any other error
+	    	Err.Clear
+	    	Exit Function
+	    End If
+	Loop Until strFileName <> ""
+	
+	GetFileName = strFileName
+End Function
+
+
+Sub CloseOpenDocument(strFileName As String)
+	On Error Resume Next
+	CreateExcel
+	objExcelApp.Workbooks(GetName(strFileName)).Activate
+	objExcelApp.ActiveWorkbook.Close
+	Err.Clear
+End Sub
+
+
+'returns a reference to Excel in the global variable objExcelApp.
+Sub CreateExcel()
+	On Error Resume Next
+	
+	'GetObject returns a reference to an existing app.
+	Set objExcelApp = GetObject(,"Excel.Application")
+	If Err = 10096 Then Debug.Print "Excel is not running, use CreateObject"
+	'CreateObject starts Excel when it's not already running.
+	If objExcelApp Is Nothing Then
+	    Set objExcelApp = CreateObject("Excel.Application")
+	End If
+	'in case we need to diagnose other errors
+	Debug.Print Err; Err.Description
+	Err.Clear
+	
+	If objExcelApp Is Nothing Then
+		ErrorBox "Unable to start Excel.  " & vbCrLf & _
+			"Script will terminate.", vbExclamation, SCRIPT_NAME
+		'Always restore settings before quitting!
+		Alerts(ALERTS_RESTORE)
+		End
+	End If
+	
+    'objExcelApp.Workbooks.Add
+    'objExcelApp.ActivateMicrosoftApp
+    objExcelApp.Visible = True
+End Sub
+
+
+'Strips the drive and path from a string.
+Function GetName(strFileName As String) As String
+	Dim strName As String
+	Dim intPos As Integer
+	Dim intPos1 As Integer
+	
+	strName = strFileName
+	
+	'Strip the drive letter and colon if present.
+	intPos = InStr(strName, ":")
+	If intPos > 0 Then
+		strName = Mid$(strName, intPos + 1)
+	End If
+	
+	'Find the last \.
+	Do
+		intPos = intPos1
+		intPos1 = InStr(intPos1 + 1, strName, "\")
+	Loop Until intPos1 = 0
+	
+	'Remove everything before the last \.
+	If intPos > 0 Then
+		strName = Mid$(strName, intPos + 1)
+	End If
+	Debug.Print  strName
+	
+	'We don't need to remove the extension...
+	
+	GetName = strName
+End Function
+
+
+'Encapsulates Alerts property, which will cause an error in SPSS 7.5.
+'Call with False (ALERTS_PRESERVE) to initialize.
+'Call with True (ALERTS_RESTORE) to restore the initial setting
+'before the script ends.
+'If script is invoked from syntax, i.e. (ScriptParameter(0) <> ""),
+'it suppresses alerts which would halt execution.
+Function Alerts(blnRestore As Boolean) As Boolean
+	Static blnInitialized As Boolean
+	Static blnAlerts As Boolean
+	Static blnAlertsInitial As Boolean
+
+	On Error Resume Next
+	
+	If Not blnInitialized Then
+		blnInitialized = True
+		
+		blnAlertsInitial = objSpssApp.Alerts
+		If Err Then	'spss 7.5
+			blnAlertsInitial = True
+			Err.Clear
+		End If
+		
+		blnAlerts = (objSpssApp.ScriptParameter(0) = "")
+		If Err Then	'spss 7.5
+			blnAlerts = True
+			Err.Clear
+		End If
+	End If
+	
+	If blnRestore Then
+		objSpssApp.Alerts = blnAlertsInitial
+		blnAlerts = blnAlertsInitial
+		'blnInitialized = False
+	End If
+	
+	Err.Clear
+	Alerts = blnAlerts
+End Function
+
+
+'Wrapper for MsgBox, asks Alerts if it's OK before putting up the DB.
+Function ErrorBox(strAlertMessage As String, intType As Integer, strTitle As String)
+	On Error Resume Next
+	Debug.Print strAlertMessage	
+	If Alerts(ALERTS_PRESERVE) Then
+		ErrorBox = MsgBox(strAlertMessage, intType, strTitle)
+	Else
+		'Could put a logging function here, for example.
+		ErrorBox = 0
+	End If
+End Function

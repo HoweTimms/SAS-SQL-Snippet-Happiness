@@ -1,0 +1,36 @@
+'Being Description
+'This script works on a currently open data file
+'It will create a message box indicating the
+'number of variables, cases, and file size
+'End Description
+
+'Declare variables
+
+Dim objDataDoc As ISpssDataDoc
+Dim objSpssInfo As ISpssInfo
+Dim intCount As Integer
+Dim lngNumCases As Long
+Dim objDocuments As ISpssDocuments
+Dim lngNumber As Long
+Dim lngNoBytes As Long
+
+Set objDocuments = objSpssApp.Documents
+Set objDataDoc = objDocuments.GetDataDoc(0)
+
+lngNumCases = objDataDoc.GetNumberOfCases
+
+' Get the File Information object
+Set objSpssInfo = objSpssApp.SpssInfo
+
+' Read the number of variables
+lngNumber = objSpssInfo.NumVariables
+
+' Figure out the number of bytes in the file
+lngNoBytes = (lngNumber + 8) * lngNumCases * 8
+
+strMessage = "There are " & CStr(lngNumCases) & " cases and " & vbCrLf
+strMessage = strMessage & CStr(lngNumber) & " variables in the file." & vbCrLf
+strMessage = strMessage & "The file is " & CStr (Format(lngNoBytes,"###,###")) & " bytes in size."
+
+MsgBox strMessage
+

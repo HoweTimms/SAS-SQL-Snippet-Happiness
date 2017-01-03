@@ -1,0 +1,51 @@
+
+
+Table	Description
+
+dbo_vw_book_ons	Appears to be consolidated plan description
+dbo_tblbigtable	Main consolidation table
+dbo_RV_debttrans	
+
+
+Keys
+
+Work_Ref	dbo_RV_debttrans.[Debt-Code] = dbo_tblbigtable.wk_ref
+Package_ID	dbo_vw_book_ons	=	dbo_tblbigtable		
+
+
+
+
+
+
+dbo_vw_book_ons	
+
+Service Indicator group by?  Available options?
+
+
+
+
+sample case numbers
+Link these three tables
+
+Group bys
+
+
+
+Portfolio slice
+
+Cohort?  Month and result?  Case and cash?
+
+
+
+,  Category
+,  Strategy
+,  Que
+,  Current_Balance
+,  Add_Ref
+,  Product_Type
+,  Package_Id
+,  Latest_Plan_Number
+,  Default_Amount
+,  Original_Debt_Value
+,  Occupation
+  [Sc1 Score]

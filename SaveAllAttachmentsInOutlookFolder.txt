@@ -1,0 +1,38 @@
+' The following Outlook VBScript saves all attachments of all emails in a given folder
+' to the c:\data2\ folder.
+' Visit my SPSS web site: http://pages.infinit.net/rlevesqu/index.htm
+
+Public Sub SaveAttachments()
+    ' Save all attachments of emails in a given folder to c:\data2\
+    ' Posted to the spss newsgroup by Raynald Levesque 2003/01/07
+    Dim mynamespace As NameSpace
+    Dim email As MailItem
+    Dim atAttachs As Attachments
+    Dim atAttach As Attachment
+    Dim myfolder As MAPIFolder
+    Dim myitem As MailItem
+    Dim strPath As String
+    Dim intCnt As Integer
+    Dim intEmails As Integer
+
+    strPath = "c:\data2\"
+    Set mynamespace = Application.GetNamespace("MAPI")
+
+    Set myfolder = mynamespace.PickFolder
+    'Set myfolder = mynamespace.GetDefaultFolder(olFolderInbox)
+    myfolder.Display
+
+    ' Go through each email in the folder
+    For intEmails = 1 To myfolder.Items.Count
+        Set myitem = myfolder.Items(intEmails)
+        'myitem.Display
+        Debug.Print "# of attachemnts= " & myitem.Attachments.Count
+        Set atAttachs = myitem.Attachments
+        For intCnt = 1 To myitem.Attachments.Count
+            'Go through each attachments
+            Set atAttach = atAttachs(intCnt)
+            atAttach.SaveAsFile (strPath & atAttach.FileName)
+        Next
+    Next intEmails
+
+    End Sub

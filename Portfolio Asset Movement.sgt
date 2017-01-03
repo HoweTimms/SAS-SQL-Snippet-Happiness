@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<template SPSS-Version="2.2" date="2007-01-30" description="Asset Movement General" selectPath="87 2 3 30 97 98 10 80 12 13 17 18 29 33 47 62 63 66 70 36 38 43 68 69 45 46 " xmlns="http://xml.spss.com/spss/visualization" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://xml.spss.com/spss/visualization http://xml.spss.com/spss/visualization/vizml-template-3.0.xsd">
+	<setAxisStyle categorical="true" role="x">
+		<axisLabelStyle>
+			<style color="#000000" color2="transparent" font-size="11pt" font-weight="bold" visible="true"/>
+		</axisLabelStyle>
+		<label>Maturity</label>
+	</setAxisStyle>
+	<setAxisStyle categorical="false" role="y">
+		<axisLabelStyle>
+			<style color="#000000" color2="transparent" font-size="11pt" font-weight="bold" visible="true"/>
+		</axisLabelStyle>
+		<label>AssetDist</label>
+	</setAxisStyle>
+	<addFrame count="1" type="visualization">
+		<location bottom="500px" left="0px" right="625px" top="0px"/>
+		<style color="#ffffff" color2="transparent" number="0" visible="true"/>
+		<style font-family="Arial" font-size="8pt" number="1" pattern="0" stroke-linecap="butt" text-fit="true" visible="true"/>
+	</addFrame>
+	<addFrame count="1" type="graph">
+		<location bottom="97.7%" left="2%" right="75%" top="6.5%"/>
+		<style color="transparent" color2="transparent" visible="true"/>
+		<style color="transparent" color2="transparent" number="1" visible="true"/>
+	</addFrame>
+	<addFrame count="1" type="legend">
+		<location bottom="97.7%" left="75%" right="98%" top="6.5%"/>
+		<style color="#000000" color2="transparent" font-size="8pt" font-weight="regular" number="1" visible="true"/>
+		<style color="transparent" color2="transparent" number="0" visible="true"/>
+		<label><style color="#000000" color2="transparent" font-size="10pt" font-weight="regular" number="0" visible="true"/></label>
+	</addFrame>
+	<addFrame count="1" type="subtitle">
+		<location bottom="6.5%" left="2%" right="98%" top="2.5%"/>
+		<style color="transparent" color2="transparent" visible="true"/>
+		<label><style color="#000000" color2="transparent" font-size="10pt" font-weight="bold" number="0" visible="true"/></label>
+	</addFrame>
+	<setAxisOpposite categorical="false" opposite="false" role="y"/>
+	<setTranspose transpose="false"/>
+	<setAxisScale method="linear" role="y"/>
+	<setTickLabelFormat categorical="false" derived="false" role="y">
+		<numberFormat maximumFractionDigits="2" minimumFractionDigits="2" useGrouping="true"/>
+	</setTickLabelFormat>
+	<setTickLabelAngle categorical="false" derived="false" role="y"/>
+	<setAxisMajorTicks>
+		<majorTicks categorical="false" delta="auto" derived="false" role="y">
+			<tickLabelStyle>
+				<style color="#000000" font-size="8pt" visible="true"/>
+			</tickLabelStyle>
+		</majorTicks>
+	</setAxisMajorTicks>
+	<setAxisMargin categorical="false" role="y" upperMargin="5%"/>
+	<setAxisOpposite categorical="true" opposite="false" role="x"/>
+	<setCategorySorting role="x" useGroupVar="false">
+		<sort descending="false">
+			<simpleSort method="natural"/>
+		</sort>
+	</setCategorySorting>
+	<setCategorySorting role="legend" useGroupVar="true">
+		<sort descending="false">
+			<simpleSort method="natural"/>
+		</sort>
+	</setCategorySorting>
+	<setAxisMajorTicks>
+		<majorTicks categorical="true" position="outside" role="x">
+			<tickLabelStyle>
+				<style color="#000000" font-size="8pt" visible="true"/>
+			</tickLabelStyle>
+		</majorTicks>
+	</setAxisMajorTicks>
+	<setTickLabelAngle categorical="true" role="x"/>
+	<setTickLabelFrequency categorical="true" labelFrequency="1" role="x"/>
+	<setAxisMargin categorical="true" lowerMargin="5%" role="x" upperMargin="5%"/>
+	<addInterpolationLine>
+		<interpolation missingRepresentation="wings" type="linear"/>
+		<style color="#000000" color2="#000000" fill-opacity="1.0" opacity="1.0" stroke-width="1pt" visible="true"/>
+	</addInterpolationLine>
+	<addFrame count="2" type="legend">
+		<style color="transparent" color2="transparent" visible="true"/>
+	</addFrame>
+	<setStyle subtype="simple" type="line">
+		<style color="#000000" color2="#000000" fill-opacity="1.0" opacity="1.0" stroke-width="1pt" visible="true"/>
+	</setStyle>
+	<setColor>
+		<cycle>
+			<style color="#000000" visible="true"/>
+			<style color="#282a73" visible="true"/>
+			<style color="#f8981d" visible="true"/>
+			<style color="#0d8d46" visible="true"/>
+			<style color="#bb3f7f" visible="true"/>
+			<style color="#ef3338" visible="true"/>
+			<style color="#666666" visible="true"/>
+			<style color="#fbf873" visible="true"/>
+			<style color="#b89bc9" visible="true"/>
+			<style color="#ef3338" visible="true"/>
+			<style color="#282a73" visible="true"/>
+			<style color="#ddbaf1" visible="true"/>
+			<style color="#1a5f76" visible="true"/>
+			<style color="#ccffcc" visible="true"/>
+			<style color="#bb3f7f" visible="true"/>
+			<style color="#999999" visible="true"/>
+			<style color="#000000" visible="true"/>
+			<style color="#b6e7e8" visible="true"/>
+			<style color="#ffffff" visible="true"/>
+			<style color="#797aa7" visible="true"/>
+			<style color="#70dc84" visible="true"/>
+			<style color="#333333" visible="true"/>
+			<style color="#acd0ee" visible="true"/>
+			<style color="#a21619" visible="true"/>
+			<style color="#5d61ff" visible="true"/>
+			<style color="#e4e4e4" visible="true"/>
+			<style color="#248bac" visible="true"/>
+			<style color="#b89bc9" visible="true"/>
+			<style color="#666666" visible="true"/>
+			<style color="#0d8d46" visible="true"/>
+		</cycle>
+	</setColor>
+</template>

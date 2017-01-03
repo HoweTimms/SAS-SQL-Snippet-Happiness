@@ -1,0 +1,42 @@
+Email tidy using AutoIt v3
+http://www.wopr.com/cgi-bin/w3t/showflat.pl?Cat=&Board=free&Number=452012&page=8&view=collapsed&sb=5&o=0&fpart=
+
+;=====================================================================
+;This file removes the prefix including "@" from email addresses in
+;Outlook's Junk Senders List.  You may need to change the path of the files.
+;Once compiled, a shortcut can be set on desktop or quick launch bar and a periodic click
+;will tidy the list.  The backup file isn't really necessary but is worth keeping
+;for an occasional check.  It makes no alterations if it doesn't find a full address.
+;====================================================================================
+$file1=@AppDatadir & "\Microsoft\Outlook\Junk Senders.txt"
+$file2=@Tempdir & "\Junk.txt" ;temp file for new list with changes
+$file=FileOpen($file1,0)
+While 1		;find full email addresses by "@"
+$line=FileReadLine($file)
+if @error = -1 then   ;reached last line
+fileclose($file)
+exit			;if none don't do anything else
+else			;otherwise if an "@" exists go to removal stage
+$pos = StringinStr($line,"@")
+if $pos<>0 then
+fileclose($file)
+exitloop
+endif
+endif
+wend
+;removal stage
+$file=FileOpen($file1,0)
+While 1
+$line=FileReadLine($file)
+if @error = -1 then exitloop ;exit loop when last line read
+$pos = StringinStr($line,"@")
+$len = StringLen($line)
+$line2 = StringRight($line,$len-$pos) ;ie whole line if no "@" exists
+FileWriteLine($file2,$line2)	;add line to temp new file
+wend
+FileClose($file)
+;rename old file as backup and new temp file as system junk senders list
+FileMove($file1,@AppDatadir & "\Microsoft\Outlook\JunkOld.txt",1)
+FileMove($file2,$file1)
+
+exit
